@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# Supabase & Local DB
+.supabase/
+supabase/.temp/
+
+# Backup files
+*.bak
+*.sql.gz
