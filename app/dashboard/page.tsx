@@ -1,8 +1,7 @@
-// app/dashboard/page.tsx  ─ v4 FINAL
+// app/dashboard/page.tsx  ─ PRODUCTION FINAL
 // ══════════════════════════════════════════════════════════════
-// Server component — fetches all data including:
-//   • dual wallet balances (cashback + referral)
-//   • pending referrals (people I referred who haven't bought yet)
+// Server component: validates session, fetches all dashboard
+// data including dual wallet balances and pending referrals.
 // ══════════════════════════════════════════════════════════════
 
 import { cookies }      from "next/headers";
@@ -12,6 +11,7 @@ import { getShopSettings } from "@/lib/actions/settings";
 import DashboardClient  from "./DashboardClient";
 
 export default async function DashboardPage() {
+  // ── 1. Validate session ──────────────────────────────────
   const jar         = await cookies();
   const accessToken = jar.get("sb-access-token")?.value;
   if (!accessToken) redirect("/login");
@@ -22,10 +22,12 @@ export default async function DashboardPage() {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  const { data: userData, error: userErr } = await svc.auth.getUser(accessToken);
-  if (userErr || !userData.user) redirect("/login");
-  const userId = userData.user.id;
+  const { data: authData, error: authErr } = await svc.auth.getUser(accessToken);
+  if (authErr || !authData?.user) redirect("/login");
 
+  const userId = authData.user.id;
+
+  // ── 2. Parallel data fetch ───────────────────────────────
   const [
     settingsRes,
     profileRes,
@@ -39,46 +41,58 @@ export default async function DashboardPage() {
 
     svc
       .from("profiles")
-      .select("id, full_name, username, email, phone, role, wallet_balance, cashback_balance, referral_balance, total_spent, visit_count, referral_code, wallet_expires_at")
+      .select(
+        "id, full_name, username, email, phone, role," +
+        " wallet_balance, cashback_balance, referral_balance," +
+        " total_spent, visit_count, referral_code," +
+        " wallet_expires_at, last_activity_at"
+      )
       .eq("id", userId)
       .single(),
 
     svc
       .from("bills")
-      .select("*")
+      .select("id, gross_amount, redemption_amount, net_amount, cashback_earned, payment_method, wallet_source, created_at")
       .eq("customer_id", userId)
       .order("created_at", { ascending: false })
       .limit(20),
 
     svc
       .from("milestones")
-      .select("*")
+      .select("id, label, visit_count, reward_type, reward_value")
       .eq("is_active", true)
       .order("visit_count"),
 
     svc
       .from("gift_tiers")
-      .select("*, gift_inventory(*)")
+      .select("id, label, min_spend, max_spend, tier_color, gift_inventory(id, name, description, stock, is_active)")
       .eq("is_active", true)
       .order("min_spend"),
 
     svc
       .from("user_milestones")
-      .select("*, milestones(*)")
+      .select("id, redeemed, redeemed_at, milestones(id, label, reward_type, reward_value)")
       .eq("profile_id", userId),
 
-    // People I referred who haven't made their first purchase yet
+    // Referrals I made where the referee hasn't bought yet
     svc
       .from("profiles")
       .select("id, full_name, username, email, phone")
       .eq("referred_by", userId)
-      .eq("is_first_purchase_done", false),
+      .eq("is_first_purchase_done", false)
+      .order("created_at", { ascending: false }),
   ]);
+
+  const profile = profileRes.data;
+
+  // ── 3. If profile is truly missing, show a safe state ────
+  // (can happen briefly after registration while trigger runs)
+  // DashboardClient handles null profile with a loading state.
 
   return (
     <DashboardClient
       settings={settingsRes}
-      profile={profileRes.data}
+      profile={profile}
       bills={billsRes.data ?? []}
       milestones={milestonesRes.data ?? []}
       giftTiers={tiersRes.data ?? []}
