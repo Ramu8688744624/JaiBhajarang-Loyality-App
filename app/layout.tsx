@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, DM_Serif_Display } from "next/font/google";
-import { createClient } from "@supabase/supabase-js";
 import { getShopSettings } from "@/lib/actions/settings";
-import Navbar from "@/components/Navbar";
+import Navbar from "@/components/NavbarServer";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -21,8 +20,8 @@ const dmSerif = DM_Serif_Display({
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getShopSettings();
   return {
-    title: settings?.shop_name ?? "Retail POS & Loyalty Suite",
-    description: "Your loyalty rewards platform",
+    title: settings?.shop_name ?? "Jai Bajrang Mobiles",
+    description: "Premium Mobile Servicing & Loyalty Rewards",
   };
 }
 
@@ -31,29 +30,6 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // FIXED: Using the standard createClient instead of the broken helper
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
-  // Get the current user session
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user;
-
-  const [settings, profileRes] = await Promise.all([
-    getShopSettings(),
-    user
-      ? supabase
-          .from("profiles")
-          .select("role, username, full_name")
-          .eq("id", user.id)
-          .single()
-      : Promise.resolve({ data: null }),
-  ]);
-
-  const profile = profileRes?.data;
-
   return (
     <html lang="en" className={`${dmSans.variable} ${dmSerif.variable}`}>
       <head>
@@ -71,21 +47,14 @@ export default async function RootLayout({
           }}
         />
 
-        {/* Navbar — now it will show up when logged in */}
-        {user && profile && (
-          <Navbar
-            shopName={settings?.shop_name ?? "My Shop"}
-            shopLogoUrl={settings?.shop_logo_url}
-            userRole={profile.role as "admin" | "customer"}
-            userName={profile.username ?? profile.full_name}
-          />
-        )}
+        {/* The new server-side Navbar handles its own session logic */}
+        <Navbar />
 
         <main className="relative z-10">
           {children}
         </main>
 
-        <div id="toast-root" className="fixed bottom-6 right-4 z- flex flex-col gap-3 pointer-events-none" />
+        <div id="toast-root" className="fixed bottom-6 right-4 z-50 flex flex-col gap-3 pointer-events-none" />
       </body>
     </html>
   );

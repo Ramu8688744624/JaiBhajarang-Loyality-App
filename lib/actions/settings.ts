@@ -1,11 +1,18 @@
 // lib/actions/settings.ts
 // ─────────────────────────────────────────────────────────────
 // Admin Settings Server Actions
+//
+// Fixes applied:
+//   • getShopSettings: noStore() added — prevents Next.js from
+//     caching the shop name/logo between requests
+//   • updateShopSettings: revalidatePath("/", "layout") ensures
+//     Navbar branding updates instantly after save
 // ─────────────────────────────────────────────────────────────
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
-import { revalidatePath } from "next/cache";
+import { createClient }                  from "@supabase/supabase-js";
+import { revalidatePath }                from "next/cache";
+import { unstable_noStore as noStore }   from "next/cache";
 
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,18 +20,20 @@ const adminSupabase = createClient(
 );
 
 export interface ShopSettings {
-  id: string;
-  shop_name: string;
-  shop_logo_url: string | null;
-  joining_bonus: number;
+  id:                     string;
+  shop_name:              string;
+  shop_logo_url:          string | null;
+  joining_bonus:          number;
   default_redemption_pct: number;
-  default_cashback_pct: number;
-  currency_symbol: string;
+  default_cashback_pct:   number;
+  currency_symbol:        string;
 }
 
 // ─── Fetch Settings ───────────────────────────────────────────
 
 export async function getShopSettings(): Promise<ShopSettings | null> {
+  noStore(); // ← opt out of full-route cache so branding is always fresh
+
   const { data, error } = await adminSupabase
     .from("shop_settings")
     .select("*")
@@ -58,6 +67,8 @@ export async function updateShopSettings(
 
   if (error) return { success: false, error: error.message };
 
+  // Bust every cached route that displays the shop name / config
+  revalidatePath("/", "layout");          // ← Navbar / root layout
   revalidatePath("/admin/settings");
   revalidatePath("/admin/billing");
   revalidatePath("/dashboard");
@@ -76,11 +87,11 @@ export async function getMilestones() {
 
 export async function upsertMilestone(milestone: {
   id?: string;
-  visit_count: number;
-  reward_type: string;
+  visit_count:  number;
+  reward_type:  string;
   reward_value?: number | null;
-  label: string;
-  is_active: boolean;
+  label:        string;
+  is_active:    boolean;
 }) {
   const { error } = await adminSupabase
     .from("milestones")
@@ -113,11 +124,11 @@ export async function getGiftTiers() {
 
 export async function upsertGiftTier(tier: {
   id?: string;
-  label: string;
+  label:     string;
   min_spend: number;
   max_spend?: number | null;
   tier_color: string;
-  is_active: boolean;
+  is_active:  boolean;
 }) {
   const { error } = await adminSupabase
     .from("gift_tiers")
@@ -129,12 +140,12 @@ export async function upsertGiftTier(tier: {
 
 export async function upsertGiftItem(item: {
   id?: string;
-  tier_id: string;
-  name: string;
+  tier_id:      string;
+  name:         string;
   description?: string;
-  image_url?: string;
-  stock: number;
-  is_active: boolean;
+  image_url?:   string;
+  stock:        number;
+  is_active:    boolean;
 }) {
   const { error } = await adminSupabase
     .from("gift_inventory")

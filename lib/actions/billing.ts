@@ -1,14 +1,13 @@
 "use server";
-// lib/actions/billing.ts  ─ v4 DUAL-WALLET FINAL
+// lib/actions/billing.ts  ─ v4 DUAL-WALLET FINAL (PATCHED)
 // ══════════════════════════════════════════════════════════════
 // Jai Bajrang Mobiles — Billing & Analytics Server Actions
 //
-// New in this version:
-//   • Dual wallet: cashback_balance + referral_balance
-//   • p_wallet_source: 'cashback' | 'referral' | 'none'
-//   • referral_per_visit_limit cap respected
-//   • previewBill returns both balances + cap info
-//   • CustomerSearchResult includes both balance fields
+// Fixes applied:
+//   • processBill: all RPC args use p_ prefix
+//   • processBill: numeric args wrapped in .toFixed(2) → NUMERIC(15,2) safe
+//   • processBill: rpcData cast to Record<string,unknown> with explicit coercion
+//   • processBill: null guard on raw RPC return
 // ══════════════════════════════════════════════════════════════
 
 import { createClient }     from "@supabase/supabase-js";
@@ -75,8 +74,8 @@ export interface BillResult {
 export interface BillPreview {
   cashbackBalance:       number;
   referralBalance:       number;
-  referralUsableCap:     number;   // min(referral_balance, per_visit_limit)
-  activeBalance:         number;   // whichever source is selected
+  referralUsableCap:     number;
+  activeBalance:         number;
   redemptionAmount:      number;
   netAmount:             number;
   cashbackEarned:        number;
@@ -87,13 +86,13 @@ export interface BillPreview {
 }
 
 export interface ShopConfig {
-  currency_symbol:         string;
-  default_redemption_pct:  number;
-  default_cashback_pct:    number;
-  joining_bonus:           number;
-  referral_bonus:          number;
+  currency_symbol:          string;
+  default_redemption_pct:   number;
+  default_cashback_pct:     number;
+  joining_bonus:            number;
+  referral_bonus:           number;
   referral_per_visit_limit: number | null;
-  wallet_expiry_days:      number;
+  wallet_expiry_days:       number;
 }
 
 export interface AnalyticsSummary {
@@ -139,29 +138,41 @@ export interface CustomerRow {
 }
 
 // ══════════════════════════════════════════════════════════════
-// SHOP CONFIG  (single fetch used by billing terminal)
+// SHOP CONFIG
 // ══════════════════════════════════════════════════════════════
 
 export async function getShopConfig(): Promise<ShopConfig> {
-  const { data } = await svcClient()
+  // Use 'noStore' to ensure we get the latest settings for the shop
+  const { data, error } = await svcClient()
     .from("shop_settings")
-    .select(
-      "currency_symbol, default_redemption_pct, default_cashback_pct," +
-      " joining_bonus, referral_bonus, referral_per_visit_limit, wallet_expiry_days"
-    )
+    .select(`
+      currency_symbol, 
+      default_redemption_pct, 
+      default_cashback_pct,
+      joining_bonus, 
+      referral_bonus, 
+      referral_per_visit_limit, 
+      wallet_expiry_days
+    `)
     .limit(1)
     .single();
 
+  // If there's an error or no data, we return the safe defaults
+  // This prevents the "GenericStringError" from breaking the UI
+  if (error || !data) {
+    console.error("Error fetching shop config:", error);
+  }
+
   return {
-    currency_symbol:          String(data?.currency_symbol         ?? "₹"),
-    default_redemption_pct:   Number(data?.default_redemption_pct  ?? 5),
-    default_cashback_pct:     Number(data?.default_cashback_pct    ?? 3),
-    joining_bonus:            Number(data?.joining_bonus           ?? 500),
-    referral_bonus:           Number(data?.referral_bonus          ?? 200),
+    currency_symbol:          String(data?.currency_symbol          ?? "₹"),
+    default_redemption_pct:   Number(data?.default_redemption_pct   ?? 5),
+    default_cashback_pct:     Number(data?.default_cashback_pct     ?? 3),
+    joining_bonus:            Number(data?.joining_bonus            ?? 500),
+    referral_bonus:           Number(data?.referral_bonus           ?? 200),
     referral_per_visit_limit: data?.referral_per_visit_limit != null
       ? Number(data.referral_per_visit_limit)
       : null,
-    wallet_expiry_days:       Number(data?.wallet_expiry_days      ?? 365),
+    wallet_expiry_days:       Number(data?.wallet_expiry_days       ?? 365),
   };
 }
 
@@ -241,7 +252,6 @@ export async function previewBill(
   const netAmount        = gross - redemptionAmount;
   const cashbackEarned   = Math.round(netAmount * cPct / 100 * 100) / 100;
 
-  // Days until expiry
   let daysUntilExpiry: number | null = null;
   if (expiresAt) {
     const diff = new Date(expiresAt).getTime() - Date.now();
@@ -277,29 +287,44 @@ export async function processBill(payload: BillPayload): Promise<BillResult> {
     redemptionPct, cashbackPct, paymentMethod, walletSource,
   } = payload;
 
-  if (Number(grossAmount)   <= 0)   return { success: false, error: "Bill amount must be greater than zero." };
-  if (Number(redemptionPct) <  0 || Number(redemptionPct) > 100) return { success: false, error: "Redemption % must be 0–100." };
-  if (Number(cashbackPct)   <  0 || Number(cashbackPct)   > 100) return { success: false, error: "Cashback % must be 0–100." };
+  if (Number(grossAmount)   <= 0)                                       return { success: false, error: "Bill amount must be greater than zero." };
+  if (Number(redemptionPct) <  0 || Number(redemptionPct) > 100)        return { success: false, error: "Redemption % must be 0–100." };
+  if (Number(cashbackPct)   <  0 || Number(cashbackPct)   > 100)        return { success: false, error: "Cashback % must be 0–100." };
 
   const svc = svcClient();
 
+  // ── All numeric args rounded to 2dp before hitting NUMERIC(15,2) columns ──
   const { data: rpcData, error: rpcErr } = await svc.rpc("process_bill", {
     p_customer_id:    String(customerId),
     p_billed_by:      String(billedBy),
-    p_gross_amount:   Number(grossAmount),
-    p_redemption_pct: Number(redemptionPct),
-    p_cashback_pct:   Number(cashbackPct),
+    p_gross_amount:   Number(Number(grossAmount).toFixed(2)),
+    p_redemption_pct: Number(Number(redemptionPct).toFixed(2)),
+    p_cashback_pct:   Number(Number(cashbackPct).toFixed(2)),
     p_payment_method: String(paymentMethod),
     p_wallet_source:  String(walletSource ?? "cashback"),
   });
 
   if (rpcErr) {
-    console.error("[processBill] RPC:", rpcErr.message);
+    console.error("[processBill] RPC error:", rpcErr.message);
     return { success: false, error: rpcErr.message };
   }
 
-  const bill = rpcData as BillSummary;
+  // ── Supabase returns JSONB as a plain JS object — coerce every field ──
+  const raw = rpcData as Record<string, unknown> | null;
+  if (!raw || typeof raw !== "object") {
+    return { success: false, error: "Unexpected response from process_bill RPC." };
+  }
 
+  const bill: BillSummary = {
+    id: String(raw.bill_id ?? ""),
+    gross_amount:      Number(raw.gross_amount      ?? 0),
+    redemption_amount: Number(raw.redemption_amount ?? 0),
+    net_amount:        Number(raw.net_amount        ?? 0),
+    cashback_earned:   Number(raw.cashback_earned   ?? 0),
+    wallet_source:     String(raw.wallet_source     ?? walletSource),
+  };
+
+  // ── Fetch updated profile for email + return values ──
   const { data: profile } = await svc
     .from("profiles")
     .select("cashback_balance, referral_balance, email, full_name, is_first_purchase_done")
@@ -310,10 +335,10 @@ export async function processBill(payload: BillPayload): Promise<BillResult> {
     sendReceiptEmail({
       to:               String(profile.email),
       name:             String(profile.full_name ?? "Valued Customer"),
-      grossAmount:      Number(bill.gross_amount),
-      redemptionAmount: Number(bill.redemption_amount),
-      netAmount:        Number(bill.net_amount),
-      cashbackEarned:   Number(bill.cashback_earned),
+      grossAmount:      bill.gross_amount,
+      redemptionAmount: bill.redemption_amount,
+      netAmount:        bill.net_amount,
+      cashbackEarned:   bill.cashback_earned,
       newWalletBalance: Number(profile.cashback_balance ?? 0) + Number(profile.referral_balance ?? 0),
     }).catch((e) => console.error("[processBill] email:", e));
   }
@@ -323,11 +348,11 @@ export async function processBill(payload: BillPayload): Promise<BillResult> {
   revalidatePath("/dashboard");
 
   return {
-    success:             true,
+    success:            true,
     bill,
-    newCashbackBalance:  Number(profile?.cashback_balance  ?? 0),
-    newReferralBalance:  Number(profile?.referral_balance  ?? 0),
-    referralBonusPaid:   profile?.is_first_purchase_done === true,
+    newCashbackBalance: Number(profile?.cashback_balance ?? 0),
+    newReferralBalance: Number(profile?.referral_balance ?? 0),
+    referralBonusPaid:  profile?.is_first_purchase_done === true,
   };
 }
 

@@ -3,29 +3,44 @@
 // ─────────────────────────────────────────────────────────────
 // Super Admin Dashboard — Analytics + User Management
 // Only accessible to role = super_admin
+//
+// Fixes applied:
+//   • fmt() and fmtCurrency() helpers replace all raw .toLocaleString() calls
+//   • StatCard widened to accept null | undefined values safely
+//   • No crash on empty analytics data for new shops
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useTransition, useCallback } from "react";
 import { getAnalytics, getAllUsers } from "@/lib/actions/billing";
 import { setUserRole, adminResetPassword } from "@/lib/actions/auth";
 
+// ─── Null-safe formatters ─────────────────────────────────────
+
+const fmt = (
+  v:    number | null | undefined,
+  opts: Intl.NumberFormatOptions = {}
+): string => Number(v ?? 0).toLocaleString("en-IN", opts);
+
+const fmtCurrency = (v: number | null | undefined) =>
+  fmt(v, { maximumFractionDigits: 0 });
+
 // ─── Types ───────────────────────────────────────────────────
 
 interface Analytics {
-  total_customers:          number;
-  total_staff:              number;
-  new_customers_30d:        number;
-  total_revenue:            number;
-  total_gross:              number;
-  revenue_30d:              number;
-  total_bills:              number;
-  bills_30d:                number;
-  total_cashback_given:     number;
-  wallet_liabilities:       number;
-  total_joining_bonus_given:number;
-  total_referral_bonus_given:number;
-  total_referred_users:     number;
-  avg_bill_value:           number;
+  total_customers:           number | null;
+  total_staff:               number | null;
+  new_customers_30d:         number | null;
+  total_revenue:             number | null;
+  total_gross:               number | null;
+  revenue_30d:               number | null;
+  total_bills:               number | null;
+  bills_30d:                 number | null;
+  total_cashback_given:      number | null;
+  wallet_liabilities:        number | null;
+  total_joining_bonus_given: number | null;
+  total_referral_bonus_given:number | null;
+  total_referred_users:      number | null;
+  avg_bill_value:            number | null;
 }
 
 interface UserRow {
@@ -43,9 +58,9 @@ interface UserRow {
 }
 
 interface DayRevenue {
-  bill_date: string;
-  revenue:   number;
-  cashback:  number;
+  bill_date:  string;
+  revenue:    number;
+  cashback:   number;
   bill_count: number;
 }
 
@@ -54,16 +69,25 @@ interface DayRevenue {
 function StatCard({
   label, value, sub, color, icon, prefix = "",
 }: {
-  label: string; value: string | number; sub?: string;
-  color: string; icon: string; prefix?: string;
+  label:   string;
+  value:   string | number | null | undefined;   // widened — null safe
+  sub?:    string;
+  color:   string;
+  icon:    string;
+  prefix?: string;
 }) {
+  const display =
+    value == null             ? "0" :
+    typeof value === "number" ? fmt(value) :
+    value;
+
   return (
     <div className="bg-[#0F1729] border border-[#1E2D4A] rounded-2xl p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-xs text-slate-500 uppercase tracking-wider mb-1.5">{label}</p>
           <p className="text-2xl font-black leading-none" style={{ color }}>
-            {prefix}{typeof value === "number" ? value.toLocaleString("en-IN") : value}
+            {prefix}{display}
           </p>
           {sub && <p className="text-xs text-slate-500 mt-1.5">{sub}</p>}
         </div>
@@ -164,8 +188,8 @@ function ResetModal({ user, onClose, onSuccess }: { user: UserRow; onClose: () =
 function PromoteModal({
   user, onClose, onSuccess,
 }: { user: UserRow; onClose: () => void; onSuccess: (role: string) => void }) {
-  const [role,   setRole]   = useState(user.role);
-  const [err,    setErr]    = useState("");
+  const [role,    setRole]  = useState(user.role);
+  const [err,     setErr]   = useState("");
   const [pending, sp]       = useTransition();
 
   const submit = (e: React.FormEvent) => {
@@ -223,15 +247,15 @@ function PromoteModal({
 // ─── Main Page ────────────────────────────────────────────────
 
 export default function SuperAdminDashboard() {
-  const [analytics,   setAnalytics]   = useState<Analytics | null>(null);
-  const [revenueData, setRevenueData] = useState<DayRevenue[]>([]);
-  const [users,       setUsers]       = useState<UserRow[]>([]);
-  const [userQuery,   setUserQuery]   = useState("");
-  const [loading,     setLoading]     = useState(true);
-  const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
+  const [analytics,     setAnalytics]     = useState<Analytics | null>(null);
+  const [revenueData,   setRevenueData]   = useState<DayRevenue[]>([]);
+  const [users,         setUsers]         = useState<UserRow[]>([]);
+  const [userQuery,     setUserQuery]     = useState("");
+  const [loading,       setLoading]       = useState(true);
+  const [resetTarget,   setResetTarget]   = useState<UserRow | null>(null);
   const [promoteTarget, setPromoteTarget] = useState<UserRow | null>(null);
-  const [toast,       setToast]       = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [activeTab,   setActiveTab]   = useState<"analytics" | "users">("analytics");
+  const [toast,         setToast]         = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [activeTab,     setActiveTab]     = useState<"analytics" | "users">("analytics");
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -254,7 +278,7 @@ export default function SuperAdminDashboard() {
     setUsers(u as UserRow[]);
   }, []);
 
-  const sym = "₹"; // fetched from settings in production
+  const sym = "₹";
 
   if (loading) {
     return (
@@ -313,18 +337,18 @@ export default function SuperAdminDashboard() {
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Revenue</p>
                   <p className="text-4xl font-black" style={{ color: "#D4A843" }}>
-                    {sym}{analytics.total_revenue.toLocaleString("en-IN", { minimumFractionDigits: 0 })}
+                    {sym}{fmt(analytics.total_revenue)}
                   </p>
                   <p className="text-sm text-slate-400 mt-1">
-                    {sym}{analytics.revenue_30d.toLocaleString("en-IN")} in last 30 days
+                    {sym}{fmt(analytics.revenue_30d)} in last 30 days
                     <span className="text-slate-600 mx-2">·</span>
-                    {analytics.bills_30d} bills
+                    {analytics.bills_30d ?? 0} bills
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-slate-500 mb-1">Avg. bill value</p>
                   <p className="text-xl font-bold text-slate-200">
-                    {sym}{analytics.avg_bill_value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    {sym}{fmtCurrency(analytics.avg_bill_value)}
                   </p>
                 </div>
               </div>
@@ -339,10 +363,10 @@ export default function SuperAdminDashboard() {
 
             {/* Stat grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Total Customers"  value={analytics.total_customers}   color="#2563EB"  icon="👥"  sub={`+${analytics.new_customers_30d} this month`} />
-              <StatCard label="Total Bills"      value={analytics.total_bills}       color="#22C55E"  icon="🧾"  sub={`${analytics.bills_30d} in last 30 days`} />
-              <StatCard label="Referred Users"   value={analytics.total_referred_users} color="#A78BFA" icon="🔗" />
-              <StatCard label="Staff Members"    value={analytics.total_staff}       color="#F59E0B"  icon="👤"  />
+              <StatCard label="Total Customers"  value={analytics.total_customers ?? 0}   color="#2563EB"  icon="👥"  sub={`+${analytics.new_customers_30d ?? 0} this month`} />
+              <StatCard label="Total Bills"      value={analytics.total_bills ?? 0}        color="#22C55E"  icon="🧾"  sub={`${analytics.bills_30d ?? 0} in last 30 days`} />
+              <StatCard label="Referred Users"   value={analytics.total_referred_users ?? 0} color="#A78BFA" icon="🔗" />
+              <StatCard label="Staff Members"    value={analytics.total_staff ?? 0}        color="#F59E0B"  icon="👤" />
             </div>
 
             {/* Loyalty / Liability grid */}
@@ -351,10 +375,10 @@ export default function SuperAdminDashboard() {
                 Loyalty & Wallet Liabilities
               </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard label="Cashback Given"    value={sym + analytics.total_cashback_given.toLocaleString("en-IN",{maximumFractionDigits:0})}    color="#22C55E" icon="🎉" />
-                <StatCard label="Wallet Liabilities" value={sym + analytics.wallet_liabilities.toLocaleString("en-IN",{maximumFractionDigits:0})}     color="#EF4444" icon="💼" sub="Outstanding wallet balances" />
-                <StatCard label="Joining Bonuses"   value={sym + analytics.total_joining_bonus_given.toLocaleString("en-IN",{maximumFractionDigits:0})} color="#D4A843" icon="🎁" />
-                <StatCard label="Referral Payouts"  value={sym + analytics.total_referral_bonus_given.toLocaleString("en-IN",{maximumFractionDigits:0})} color="#A78BFA" icon="🔗" />
+                <StatCard label="Cashback Given"     value={sym + fmtCurrency(analytics.total_cashback_given)}     color="#22C55E" icon="🎉" />
+                <StatCard label="Wallet Liabilities" value={sym + fmtCurrency(analytics.wallet_liabilities)}       color="#EF4444" icon="💼" sub="Outstanding wallet balances" />
+                <StatCard label="Joining Bonuses"    value={sym + fmtCurrency(analytics.total_joining_bonus_given)} color="#D4A843" icon="🎁" />
+                <StatCard label="Referral Payouts"   value={sym + fmtCurrency(analytics.total_referral_bonus_given)} color="#A78BFA" icon="🔗" />
               </div>
             </div>
           </>
@@ -399,9 +423,9 @@ export default function SuperAdminDashboard() {
                       </td>
                       <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
                       <td className="px-4 py-3 text-sm font-semibold" style={{ color: "#D4A843" }}>
-                        ₹{u.wallet_balance.toFixed(0)}
+                        ₹{Number(u.wallet_balance ?? 0).toFixed(0)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-300">₹{u.total_spent.toFixed(0)}</td>
+                      <td className="px-4 py-3 text-sm text-slate-300">₹{Number(u.total_spent ?? 0).toFixed(0)}</td>
                       <td className="px-4 py-3 text-sm text-slate-300">{u.visit_count}</td>
                       <td className="px-4 py-3 text-sm text-slate-300">{u.total_referrals}</td>
                       <td className="px-4 py-3">
@@ -436,7 +460,7 @@ export default function SuperAdminDashboard() {
                     </div>
                     <div className="text-right">
                       <RoleBadge role={u.role} />
-                      <p className="text-sm font-bold mt-1" style={{ color: "#D4A843" }}>₹{u.wallet_balance.toFixed(0)}</p>
+                      <p className="text-sm font-bold mt-1" style={{ color: "#D4A843" }}>₹{Number(u.wallet_balance ?? 0).toFixed(0)}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
