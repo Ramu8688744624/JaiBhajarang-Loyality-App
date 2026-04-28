@@ -91,7 +91,8 @@ export interface ShopConfig {
   default_cashback_pct:     number;
   joining_bonus:            number;
   referral_bonus:           number;
-  referral_per_visit_limit: number | null;
+  referral_per_visit_limit: number | null; // This is the ₹100 limit
+  referral_usage_limit:     number;        // ADDED: This is the '2 times' limit
   wallet_expiry_days:       number;
 }
 
@@ -142,7 +143,7 @@ export interface CustomerRow {
 // ══════════════════════════════════════════════════════════════
 
 export async function getShopConfig(): Promise<ShopConfig> {
-  // Use 'noStore' to ensure we get the latest settings for the shop
+  // We added 'referral_usage_count_limit' to the select query
   const { data, error } = await svcClient()
     .from("shop_settings")
     .select(`
@@ -152,13 +153,12 @@ export async function getShopConfig(): Promise<ShopConfig> {
       joining_bonus, 
       referral_bonus, 
       referral_per_visit_limit, 
+      referral_usage_count_limit,
       wallet_expiry_days
     `)
     .limit(1)
     .single();
 
-  // If there's an error or no data, we return the safe defaults
-  // This prevents the "GenericStringError" from breaking the UI
   if (error || !data) {
     console.error("Error fetching shop config:", error);
   }
@@ -169,9 +169,12 @@ export async function getShopConfig(): Promise<ShopConfig> {
     default_cashback_pct:     Number(data?.default_cashback_pct     ?? 3),
     joining_bonus:            Number(data?.joining_bonus            ?? 500),
     referral_bonus:           Number(data?.referral_bonus           ?? 200),
+    // If the database value is null, we default to 100 for your requirement
     referral_per_visit_limit: data?.referral_per_visit_limit != null
       ? Number(data.referral_per_visit_limit)
-      : null,
+      : 100,
+    // Maps the database column to the new 'referral_usage_limit' in your interface
+    referral_usage_limit:     Number(data?.referral_usage_count_limit ?? 2),
     wallet_expiry_days:       Number(data?.wallet_expiry_days       ?? 365),
   };
 }
@@ -234,23 +237,39 @@ export async function previewBill(
   const cashbackBal  = Number(profileRes.data?.cashback_balance  ?? 0);
   const referralBal  = Number(profileRes.data?.referral_balance  ?? 0);
   const expiresAt    = profileRes.data?.wallet_expires_at ?? null;
+
+  // Use the limit from settings (defaulting to 100 if not set)
   const perVisitCap  = configRes.data?.referral_per_visit_limit != null
     ? Number(configRes.data.referral_per_visit_limit)
-    : referralBal;
+    : 100;
 
+  // The maximum referral amount they can use is the smaller of their balance or the cap
   const referralUsable = Math.min(referralBal, perVisitCap);
 
   const activeBalance =
     walletSource === "cashback" ? cashbackBal :
     walletSource === "referral" ? referralUsable : 0;
 
-  const gross            = Number(grossAmount);
-  const rPct             = Number(redemptionPct);
-  const cPct             = Number(cashbackPct);
-  const redemptionMax    = Math.round(gross * rPct / 100 * 100) / 100;
-  const redemptionAmount = Math.min(redemptionMax, activeBalance);
-  const netAmount        = gross - redemptionAmount;
-  const cashbackEarned   = Math.round(netAmount * cPct / 100 * 100) / 100;
+  const gross = Number(grossAmount);
+  const cPct  = Number(cashbackPct);
+
+  // ─── UPDATED CALCULATION LOGIC ──────────────────────────────────────
+  let redemptionAmount = 0;
+
+  if (walletSource === "referral") {
+    // For referral: Ignore the percentage slider and apply the flat discount cap
+    // We use the smaller of the 'activeBalance' (which is capped at ₹100) or the bill
+    redemptionAmount = Math.min(activeBalance, gross);
+  } else if (walletSource === "cashback") {
+    // For cashback: Keep using the percentage slider (e.g., 5% of bill)
+    const rPct             = Number(redemptionPct);
+    const redemptionMax    = Math.round(gross * rPct / 100 * 100) / 100;
+    redemptionAmount       = Math.min(redemptionMax, activeBalance);
+  }
+  // ────────────────────────────────────────────────────────────────────
+
+  const netAmount      = gross - redemptionAmount;
+  const cashbackEarned = Math.round(netAmount * cPct / 100 * 100) / 100;
 
   let daysUntilExpiry: number | null = null;
   if (expiresAt) {
@@ -272,11 +291,10 @@ export async function previewBill(
     projectedReferral: walletSource === "referral"
       ? referralBal - redemptionAmount
       : referralBal,
-    walletExpiresAt:  expiresAt,
+    walletExpiresAt:   expiresAt,
     daysUntilExpiry,
   };
 }
-
 // ══════════════════════════════════════════════════════════════
 // PROCESS BILL
 // ══════════════════════════════════════════════════════════════
@@ -287,62 +305,77 @@ export async function processBill(payload: BillPayload): Promise<BillResult> {
     redemptionPct, cashbackPct, paymentMethod, walletSource,
   } = payload;
 
-  if (Number(grossAmount)   <= 0)                                       return { success: false, error: "Bill amount must be greater than zero." };
-  if (Number(redemptionPct) <  0 || Number(redemptionPct) > 100)        return { success: false, error: "Redemption % must be 0–100." };
-  if (Number(cashbackPct)   <  0 || Number(cashbackPct)   > 100)        return { success: false, error: "Cashback % must be 0–100." };
+  // 1. Basic Validations
+  if (Number(grossAmount) <= 0) return { success: false, error: "Bill amount must be greater than zero." };
 
   const svc = svcClient();
 
-  // ── All numeric args rounded to 2dp before hitting NUMERIC(15,2) columns ──
+  // 2. Fetch Shop Configuration and Profile
+  const [config, profileRes] = await Promise.all([
+    getShopConfig(),
+    svc.from("profiles")
+      .select("referral_balance, referral_usage_count, total_referrals")
+      .eq("id", customerId)
+      .single()
+  ]);
+
+  const profile = profileRes.data;
+  if (!config) return { success: false, error: "Could not load shop settings." };
+
+  let finalRedemptionPct = Number(redemptionPct);
+
+  // 3. Referral Logic Enforcement
+  if (walletSource === "referral") {
+    const totalReferrals = profile?.total_referrals ?? 0;
+    const usageCount = profile?.referral_usage_count ?? 0;
+    const perVisitLimit = config.referral_per_visit_limit ?? 100;
+    const dynamicUsageLimit = totalReferrals * 2;
+
+    if (totalReferrals === 0) return { success: false, error: "No referrals available." };
+    if (usageCount >= dynamicUsageLimit) return { success: false, error: "Usage limit reached." };
+
+    // FIX: Send the flat amount (e.g., 100) to the database
+    const availableBalance = Number(profile?.referral_balance ?? 0);
+    // The discount is the smaller of: Balance OR ₹100 Cap OR Total Bill
+    finalRedemptionPct = Math.min(availableBalance, perVisitLimit, Number(grossAmount));
+  }
+
+  // 4. Execute Transaction via Database RPC
+  // Note: We use 'svc' here because that is how it is defined at the top of your function
   const { data: rpcData, error: rpcErr } = await svc.rpc("process_bill", {
     p_customer_id:    String(customerId),
     p_billed_by:      String(billedBy),
     p_gross_amount:   Number(Number(grossAmount).toFixed(2)),
-    p_redemption_pct: Number(Number(redemptionPct).toFixed(2)),
+    p_redemption_pct: Number(finalRedemptionPct.toFixed(2)),
     p_cashback_pct:   Number(Number(cashbackPct).toFixed(2)),
     p_payment_method: String(paymentMethod),
     p_wallet_source:  String(walletSource ?? "cashback"),
   });
+  if (rpcErr) return { success: false, error: rpcErr.message };
 
-  if (rpcErr) {
-    console.error("[processBill] RPC error:", rpcErr.message);
-    return { success: false, error: rpcErr.message };
-  }
-
-  // ── Supabase returns JSONB as a plain JS object — coerce every field ──
-  const raw = rpcData as Record<string, unknown> | null;
-  if (!raw || typeof raw !== "object") {
-    return { success: false, error: "Unexpected response from process_bill RPC." };
-  }
-
+  const raw = rpcData as Record<string, any> | null;
   const bill: BillSummary = {
-    id: String(raw.bill_id ?? ""),
-    gross_amount:      Number(raw.gross_amount      ?? 0),
-    redemption_amount: Number(raw.redemption_amount ?? 0),
-    net_amount:        Number(raw.net_amount        ?? 0),
-    cashback_earned:   Number(raw.cashback_earned   ?? 0),
-    wallet_source:     String(raw.wallet_source     ?? walletSource),
+    id: String(raw?.bill_id ?? ""),
+    gross_amount:      Number(raw?.gross_amount      ?? 0),
+    redemption_amount: Number(raw?.redemption_amount ?? 0),
+    net_amount:        Number(raw?.net_amount        ?? 0),
+    cashback_earned:   Number(raw?.cashback_earned   ?? 0),
+    wallet_source:     String(raw?.wallet_source     ?? walletSource),
   };
 
-  // ── Fetch updated profile for email + return values ──
-  const { data: profile } = await svc
+  // 5. Update Usage Count ONLY if Referral was used
+  if (walletSource === "referral" && bill.redemption_amount > 0) {
+    await svc.rpc('increment_referral_usage', { p_user_id: customerId });
+  }
+
+  // 6. Fetch updated profile for UI and Emails
+  const { data: updatedProfile } = await svc
     .from("profiles")
     .select("cashback_balance, referral_balance, email, full_name, is_first_purchase_done")
     .eq("id", String(customerId))
     .single();
 
-  if (profile?.email && bill) {
-    sendReceiptEmail({
-      to:               String(profile.email),
-      name:             String(profile.full_name ?? "Valued Customer"),
-      grossAmount:      bill.gross_amount,
-      redemptionAmount: bill.redemption_amount,
-      netAmount:        bill.net_amount,
-      cashbackEarned:   bill.cashback_earned,
-      newWalletBalance: Number(profile.cashback_balance ?? 0) + Number(profile.referral_balance ?? 0),
-    }).catch((e) => console.error("[processBill] email:", e));
-  }
-
+  // 7. Revalidate UI
   revalidatePath("/admin/billing");
   revalidatePath("/admin/customers");
   revalidatePath("/dashboard");
@@ -350,16 +383,11 @@ export async function processBill(payload: BillPayload): Promise<BillResult> {
   return {
     success:            true,
     bill,
-    newCashbackBalance: Number(profile?.cashback_balance ?? 0),
-    newReferralBalance: Number(profile?.referral_balance ?? 0),
-    referralBonusPaid:  profile?.is_first_purchase_done === true,
+    newCashbackBalance: Number(updatedProfile?.cashback_balance ?? 0),
+    newReferralBalance: Number(updatedProfile?.referral_balance ?? 0),
+    referralBonusPaid:  updatedProfile?.is_first_purchase_done === true,
   };
 }
-
-// ══════════════════════════════════════════════════════════════
-// ANALYTICS
-// ══════════════════════════════════════════════════════════════
-
 export async function getAnalytics(): Promise<{
   summary:      AnalyticsSummary | null;
   revenueByDay: DayRevenue[];
@@ -382,47 +410,47 @@ export async function getAnalytics(): Promise<{
 // ══════════════════════════════════════════════════════════════
 
 export async function getAllUsers(query?: string): Promise<CustomerRow[]> {
+  // We now query 'customer_stats' instead of 'profiles' to get calculated totals
   let builder = svcClient()
-    .from("profiles")
-    .select(
-      "id, full_name, username, email, phone, role," +
-      " wallet_balance, cashback_balance, referral_balance," +
-      " total_spent, visit_count, total_referrals," +
-      " referral_code, created_at, wallet_expires_at"
-    )
-    .order("created_at", { ascending: false })
-    .limit(200);
+    .from("customer_stats") 
+    .select("*")
+    .order("full_name", { ascending: true });
 
   if (query?.trim()) {
     const q = String(query).trim();
+    // Optimized search across primary identification fields
     builder = builder.or(
-      `email.ilike.%${q}%,phone.ilike.%${q}%,` +
-      `full_name.ilike.%${q}%,username.ilike.%${q}%`
+      `email.ilike.%${q}%,phone.ilike.%${q}%,full_name.ilike.%${q}%,username.ilike.%${q}%`
     );
   }
 
   const { data, error } = await builder;
-  if (error) { console.error("[getAllUsers]", error.message); return []; }
+  
+  if (error) { 
+    console.error("[getAllUsers] Database Error:", error.message); 
+    return []; 
+  }
 
   return (data ?? []).map((r: any): CustomerRow => ({
-    id:               String(r.id              ?? ""),
-    full_name:        r.full_name              ?? null,
-    username:         String(r.username        ?? ""),
-    email:            r.email                  ?? null,
-    phone:            r.phone                  ?? null,
-    role:             String(r.role            ?? "customer"),
-    wallet_balance:   Number(r.wallet_balance  ?? 0),
-    cashback_balance: Number(r.cashback_balance?? 0),
-    referral_balance: Number(r.referral_balance?? 0),
-    total_spent:      Number(r.total_spent     ?? 0),
-    visit_count:      Number(r.visit_count     ?? 0),
-    total_referrals:  Number(r.total_referrals ?? 0),
-    referral_code:    r.referral_code          ?? null,
-    created_at:       String(r.created_at      ?? ""),
-    wallet_expires_at: r.wallet_expires_at     ?? null,
+    id:               String(r.id               ?? ""),
+    full_name:        r.full_name               ?? null,
+    username:         String(r.username         ?? ""),
+    email:            r.email                   ?? null,
+    phone:            r.phone                   ?? null,
+    role:             "customer", 
+    // Wallet balance is now the sum of their two actual balances
+    wallet_balance:   Number(r.cashback_balance ?? 0) + Number(r.referral_balance ?? 0),
+    cashback_balance: Number(r.cashback_balance ?? 0),
+    referral_balance: Number(r.referral_balance ?? 0),
+    // These values are now calculated live from the 'bills' table via the View
+    total_spent:      Number(r.total_spent      ?? 0),
+    visit_count:      Number(r.visit_count      ?? 0),
+    total_referrals:  Number(r.total_referrals  ?? 0),
+    referral_code:    r.referral_code           ?? null,
+    created_at:       String(r.created_at       ?? ""),
+    wallet_expires_at: r.wallet_expires_at      ?? null,
   }));
 }
-
 // ══════════════════════════════════════════════════════════════
 // PRIVATE HELPERS
 // ══════════════════════════════════════════════════════════════

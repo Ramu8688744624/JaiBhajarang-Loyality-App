@@ -330,6 +330,34 @@ export async function registerCustomer(
     }
 
     const userId = String(authData.user.id);
+    if (referralCode) {
+  try {
+    // 1. Find the Referrer's ID and the promised bonus amount from settings
+    const { data: refProfile } = await svc
+      .from("profiles")
+      .select("id")
+      .eq("referral_code", referralCode)
+      .single();
+
+    const { data: settings } = await svc
+      .from("shop_settings")
+      .select("referral_bonus")
+      .single();
+
+    if (refProfile) {
+      // 2. Insert the row so the "Pending" reward exists in the DB
+      await svc.from("referrals").insert({
+        referrer_id:     refProfile.id,
+        referee_id:      userId,
+        promised_amount: Number(settings?.referral_bonus ?? 200),
+        bonus_paid:      false, // This keeps it in "Pending/Locked" status
+      });
+    }
+  } catch (err) {
+    console.error("Failed to link referral:", err);
+    // We don't block registration if referral linking fails, but we log it.
+  }
+}
 
     // ── Wait for trigger to create profile row (max 2 s) ───────
     let profile: RegisteredProfile | null = null;

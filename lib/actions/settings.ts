@@ -2,11 +2,10 @@
 // ─────────────────────────────────────────────────────────────
 // Admin Settings Server Actions
 //
-// Fixes applied:
-//   • getShopSettings: noStore() added — prevents Next.js from
-//     caching the shop name/logo between requests
-//   • updateShopSettings: revalidatePath("/", "layout") ensures
-//     Navbar branding updates instantly after save
+// Updated to include:
+//   • Referral Usage Caps (Per-visit limit)
+//   • Referral Usage Frequency (Count limit)
+//   • Minimum Bill requirements
 // ─────────────────────────────────────────────────────────────
 "use server";
 
@@ -20,19 +19,25 @@ const adminSupabase = createClient(
 );
 
 export interface ShopSettings {
-  id:                     string;
-  shop_name:              string;
-  shop_logo_url:          string | null;
-  joining_bonus:          number;
-  default_redemption_pct: number;
-  default_cashback_pct:   number;
-  currency_symbol:        string;
+  id:                         string;
+  shop_name:                  string;
+  shop_logo_url:              string | null;
+  joining_bonus:              number;
+  referral_bonus:             number; // Added: Earning per referral
+  default_redemption_pct:     number;
+  default_cashback_pct:       number;
+  currency_symbol:            string;
+  // --- New Referral & Billing Logic Fields ---
+  referral_per_visit_limit:   number; // e.g., ₹100 max per bill
+  referral_usage_count_limit: number; // e.g., 2 visits per referral earned
+  min_bill_for_referral:      number; // e.g., ₹500 min bill to use referral
+  wallet_expiry_days:         number;
 }
 
 // ─── Fetch Settings ───────────────────────────────────────────
 
 export async function getShopSettings(): Promise<ShopSettings | null> {
-  noStore(); // ← opt out of full-route cache so branding is always fresh
+  noStore(); // Opt out of cache so branding/config is always fresh
 
   const { data, error } = await adminSupabase
     .from("shop_settings")
@@ -60,22 +65,27 @@ export async function updateShopSettings(
 
   if (!existing) return { success: false, error: "Settings row not found" };
 
+  // Prepare the update payload including the new logic fields
   const { error } = await adminSupabase
     .from("shop_settings")
-    .update({ ...settings, updated_at: new Date().toISOString() })
+    .update({ 
+      ...settings, 
+      updated_at: new Date().toISOString() 
+    })
     .eq("id", existing.id);
 
   if (error) return { success: false, error: error.message };
 
   // Bust every cached route that displays the shop name / config
-  revalidatePath("/", "layout");          // ← Navbar / root layout
+  revalidatePath("/", "layout");           // Navbar / root layout
   revalidatePath("/admin/settings");
   revalidatePath("/admin/billing");
   revalidatePath("/dashboard");
+  
   return { success: true };
 }
 
-// ─── Milestones CRUD ──────────────────────────────────────────
+// ─── Milestones CRUD (Existing) ───────────────────────────────
 
 export async function getMilestones() {
   const { data } = await adminSupabase
@@ -112,7 +122,7 @@ export async function deleteMilestone(id: string) {
   return { success: true };
 }
 
-// ─── Gift Tiers CRUD ──────────────────────────────────────────
+// ─── Gift Tiers CRUD (Existing) ───────────────────────────────
 
 export async function getGiftTiers() {
   const { data } = await adminSupabase
