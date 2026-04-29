@@ -3,11 +3,11 @@
 // ══════════════════════════════════════════════════════════════
 // Jai Bajrang Mobiles — Homepage UI (client component)
 // Receives isLoggedIn + dashboardHref from server — no useEffect
-// needed for the login button. Language toggle is the only
-// client-side state here.
+// needed for the login button. Language is synced via URL param
+// and localStorage for persistence.
 // ══════════════════════════════════════════════════════════════
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link         from "next/link";
 
 type Lang = "en" | "te" | "hi";
@@ -141,7 +141,46 @@ export default function HomeClient({
   isLoggedIn:    boolean;
   dashboardHref: string;
 }) {
+  const [mounted, setMounted] = useState(false);
+  
+  // Default to 'en' to match server render — prevent hydration mismatch
   const [lang, setLang] = useState<Lang>("en");
+
+  // After component mounts, check URL and localStorage for language preference
+  useEffect(() => {
+    setMounted(true);
+    
+    const params = new URLSearchParams(window.location.search);
+    const langParam = params.get("lang");
+    if (langParam === "te" || langParam === "hi") {
+      setLang(langParam);
+      return;
+    }
+    
+    const stored = localStorage.getItem("preferred_language");
+    if (stored === "te" || stored === "hi") {
+      setLang(stored);
+    }
+  }, []);
+
+  // Save language preference to localStorage
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem("preferred_language", lang);
+      document.cookie = `NEXT_LOCALE=${lang}; path=/; max-age=31536000`;
+    }
+  }, [lang, mounted]);
+
+  const handleLanguageChange = (newLang: Lang) => {
+    // Update URL with lang parameter
+    const params = new URLSearchParams(window.location.search);
+    params.set("lang", newLang);
+    window.history.replaceState({}, "", `?${params.toString()}`);
+    
+    // Update state (also saves to localStorage and cookie via useEffect)
+    setLang(newLang);
+  };
+
   const t = T[lang];
 
   return (
@@ -153,59 +192,6 @@ export default function HomeClient({
         fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif",
       }}
     >
-      {/* ── Sticky nav ──────────────────────────────────── */}
-      <nav className="sticky top-0 z-50 border-b border-[#1E2D4A] bg-[#0A0F1E]/96 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-              style={{ background: "linear-gradient(135deg,#1B3A6B,#2563EB)" }}
-            >📱</div>
-            <div className="leading-tight">
-              <p className="text-sm font-bold" style={{ color: "#D4A843" }}>Jai Bajrang Mobiles</p>
-              <p className="text-[10px] text-slate-600">{t.city}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Language switcher */}
-            <div className="flex bg-[#0F1729] border border-[#1E2D4A] rounded-xl overflow-hidden">
-              {(["en","te","hi"] as Lang[]).map((l) => (
-                <button
-                  key={l}
-                  onClick={() => setLang(l)}
-                  className={`px-3 py-1.5 text-xs font-semibold transition-all ${
-                    lang === l ? "text-[#0A0F1E]" : "text-slate-500 hover:text-slate-300"
-                  }`}
-                  style={lang === l ? { background: "linear-gradient(135deg,#D4A843,#F5D078)" } : {}}
-                >
-                  {l === "en" ? "EN" : l === "te" ? "తె" : "हि"}
-                </button>
-              ))}
-            </div>
-
-            {/* Smart CTA — correct on first render, no flicker */}
-            {isLoggedIn ? (
-              <Link
-                href={dashboardHref}
-                className="hidden sm:inline-flex items-center px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
-                style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)", color: "#0A0F1E" }}
-              >
-                {t.btn_dashboard}
-              </Link>
-            ) : (
-              <Link
-                href="/login"
-                className="hidden sm:inline-flex items-center px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
-                style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)", color: "#0A0F1E" }}
-              >
-                {t.btn_login}
-              </Link>
-            )}
-          </div>
-        </div>
-      </nav>
-
       {/* ── Hero ────────────────────────────────────────── */}
       <section
         className="relative py-16 sm:py-24 px-4 overflow-hidden"

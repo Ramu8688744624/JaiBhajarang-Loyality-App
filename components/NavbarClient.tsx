@@ -12,12 +12,13 @@
 
 import { useState, useEffect } from "react";
 import Link                    from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { logout }              from "@/lib/actions/auth";
 
 // ─── Types ───────────────────────────────────────────────────
 
 type Role = "super_admin" | "admin" | "customer" | null;
+type Language = "en" | "te" | "hi";
 
 interface NavLink { href: string; label: string; icon: string }
 
@@ -59,15 +60,92 @@ function getBadge(role: string | null) {
   }
 }
 
+// ─── Language Switcher Sub-component ───────────────────────
+
+interface LanguageSwitcherProps {
+  language: Language;
+  onLanguageChange: (lang: Language) => void;
+}
+
+function LanguageSwitcher({ language, onLanguageChange }: LanguageSwitcherProps) {
+  const languages: Array<{ code: Language; label: string }> = [
+    { code: "en", label: "EN" },
+    { code: "te", label: "తె" },
+    { code: "hi", label: "हि" },
+  ];
+
+  return (
+    <div className="flex bg-slate-900/50 rounded-lg p-1 border border-[#D4A843]/20 gap-0">
+      {languages.map((lang) => (
+        <button
+          key={lang.code}
+          onClick={() => onLanguageChange(lang.code)}
+          className={`px-2.5 py-1 text-xs font-bold rounded transition-all ${
+            language === lang.code
+              ? "text-[#0A0F1E]"
+              : "text-slate-400 hover:text-[#D4A843]"
+          }`}
+          style={
+            language === lang.code
+              ? { backgroundColor: "#D4A843" }
+              : {}
+          }
+        >
+          {lang.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────
 
 export default function NavbarClient({ shopName, shopLogoUrl, userRole, userName }: Props) {
   const [menuOpen,   setMenuOpen]   = useState(false);
   const [scrolled,   setScrolled]   = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [mounted,    setMounted]    = useState(false);
 
   const pathname = usePathname();
   const router   = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Initialize language — default to 'en' to match server-side render
+  // Only read from client-side sources after mounted to prevent hydration mismatch
+  const [language, setLanguage] = useState<Language>("en");
+
+  useEffect(() => {
+    // Component mounted — now safe to read from URL and localStorage
+    setMounted(true);
+    
+    const langParam = searchParams.get("lang");
+    if (langParam === "te" || langParam === "hi") {
+      setLanguage(langParam);
+      return;
+    }
+    
+    const stored = localStorage.getItem("preferred_language");
+    if (stored === "te" || stored === "hi") {
+      setLanguage(stored);
+    }
+  }, [searchParams]);
+
+  // Handle language change by saving to localStorage, updating URL, and refreshing
+  const handleLanguageChange = (lang: Language) => {
+    // Save to localStorage for persistence across sessions
+    localStorage.setItem("preferred_language", lang);
+    
+    // Set NEXT_LOCALE cookie for server-side locale detection
+    document.cookie = `NEXT_LOCALE=${lang}; path=/; max-age=31536000`;
+    
+    // Update URL with lang parameter
+    const params = new URLSearchParams(searchParams);
+    params.set("lang", lang);
+    router.push(`${pathname}?${params.toString()}`);
+    
+    // Refresh page so server-side content picks up the new language
+    window.location.reload();
+  };
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 6);
@@ -174,37 +252,54 @@ export default function NavbarClient({ shopName, shopLogoUrl, userRole, userName
             )}
 
             {/* ── Desktop right ─────────────────────────────── */}
-            <div className="hidden md:flex items-center gap-3 flex-shrink-0">
-              {badge && (
-                <span
-                  className="text-xs font-bold px-2.5 py-1 rounded-full"
-                  style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.color}40` }}
-                >
-                  {badge.label}
-                </span>
-              )}
-              {userName && (
-                <span className="text-sm text-slate-400 max-w-[120px] truncate">{userName}</span>
-              )}
-              {isAuth ? (
-                <button
-                  onClick={handleSignOut}
-                  disabled={signingOut}
-                  className="text-sm text-slate-500 hover:text-slate-200 px-3 py-1.5 rounded-xl hover:bg-white/6 transition-all disabled:opacity-50"
-                >
-                  {signingOut ? "…" : "Sign out"}
-                </button>
-              ) : (
-                <Link
-                  href="/login"
-                  className="text-sm font-semibold px-4 py-1.5 rounded-xl transition-all active:scale-[0.97]"
-                  style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)", color: "#0A0F1E" }}
-                >
-                  Sign In
-                </Link>
-              )}
-            </div>
+            {/* ── Desktop right ─────────────────────────────── */}
+<div className="hidden md:flex items-center gap-3 flex-shrink-0">
+  
+  {/* 1. Language Switcher (EN/తె/हि) */}
+  <LanguageSwitcher language={language} onLanguageChange={handleLanguageChange} />
 
+  {/* 2. My Dashboard Button (Only for Customers to avoid redundancy) */}
+  {userRole === "customer" && pathname !== "/dashboard" && (
+    <Link 
+      href="/dashboard" 
+      className="text-[#0A0F1E] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all hover:bg-[#F5D078] active:scale-95"
+      style={{ backgroundColor: "#D4A843" }}
+    >
+      My Dashboard →
+    </Link>
+  )}
+
+  {badge && (
+    <span
+      className="text-xs font-bold px-2.5 py-1 rounded-full"
+      style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.color}40` }}
+    >
+      {badge.label}
+    </span>
+  )}
+
+  {userName && (
+    <span className="text-sm text-slate-400 max-w-[120px] truncate">{userName}</span>
+  )}
+
+  {isAuth ? (
+    <button
+      onClick={handleSignOut}
+      disabled={signingOut}
+      className="text-sm text-slate-500 hover:text-slate-200 px-3 py-1.5 rounded-xl hover:bg-white/6 transition-all disabled:opacity-50"
+    >
+      {signingOut ? "…" : "Sign out"}
+    </button>
+  ) : (
+    <Link
+      href="/login"
+      className="text-sm font-semibold px-4 py-1.5 rounded-xl transition-all active:scale-[0.97]"
+      style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)", color: "#0A0F1E" }}
+    >
+      Sign In
+    </Link>
+  )}
+</div>
             {/* ── Mobile hamburger ──────────────────────────── */}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -226,7 +321,21 @@ export default function NavbarClient({ shopName, shopLogoUrl, userRole, userName
           }`}
           style={{ borderTop: menuOpen ? "1px solid rgba(212,168,67,0.1)" : "none" }}
         >
-          <div className="bg-[#0A0F1E] px-4 py-3 space-y-1">
+          <div className="bg-[#0A0F1E] px-4 py-3 space-y-3">
+            {/* Mobile Language Switcher and Dashboard Button */}
+            <div className="space-y-2 pb-2 border-b border-white/6">
+              <LanguageSwitcher language={language} onLanguageChange={handleLanguageChange} />
+              {userRole === "customer" && pathname !== "/dashboard" && (
+                <Link 
+                  href="/dashboard" 
+                  className="w-full text-[#0A0F1E] px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
+                  style={{ backgroundColor: "#D4A843" }}
+                >
+                  My Dashboard →
+                </Link>
+              )}
+            </div>
+
             {isAuth && links.map((l) => (
               <Link
                 key={l.href}
