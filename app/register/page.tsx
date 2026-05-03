@@ -1,10 +1,13 @@
 "use client";
-// app/register/page.tsx  ─ EMAIL-AUTH FINAL
+// app/register/page.tsx  ─ TRIGGER-FIRST FINAL
 // ══════════════════════════════════════════════════════════════
 // Jai Bajrang Mobiles — Public Registration
-// Primary auth: email + password
-// Phone: collected for business records (not used for auth)
-// Referral: captured from ?ref=CODE in the URL
+//
+// Changes vs previous version:
+//   • Phone is genuinely optional (submit button no longer blocked by it)
+//   • Removed the phone.length !== 10 hard-block on the submit button
+//   • Validation error message matches what auth.ts actually checks
+//   • getShopSettings() called once on mount; no duplicate Navbar
 // ══════════════════════════════════════════════════════════════
 
 import {
@@ -15,24 +18,24 @@ import Link                           from "next/link";
 import { registerCustomer }           from "@/lib/actions/auth";
 import { getShopSettings }            from "@/lib/actions/settings";
 
-// ─── Inner form (needs useSearchParams → must be in Suspense) ─
+// ─── Inner form ───────────────────────────────────────────────
 
 function RegisterForm() {
-  const params      = useSearchParams();
-  const router      = useRouter();
+  const params   = useSearchParams();
+  const router   = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [settings,   setSettings]   = useState<any>(null);
-  const [fullName,   setFullName]   = useState("");
-  const [email,      setEmail]      = useState("");
-  const [phone,      setPhone]      = useState("");
-  const [password,   setPassword]   = useState("");
-  const [confirm,    setConfirm]    = useState("");
-  const [showPwd,    setShowPwd]    = useState(false);
-  const [refCode,    setRefCode]    = useState(params.get("ref") ?? "");
-  const [error,      setError]      = useState("");
-  const [done,       setDone]       = useState(false);
-  const [bonusMsg,   setBonusMsg]   = useState("");
+  const [settings,  setSettings]  = useState<any>(null);
+  const [fullName,  setFullName]  = useState("");
+  const [email,     setEmail]     = useState("");
+  const [phone,     setPhone]     = useState("");
+  const [password,  setPassword]  = useState("");
+  const [confirm,   setConfirm]   = useState("");
+  const [showPwd,   setShowPwd]   = useState(false);
+  const [refCode,   setRefCode]   = useState(params.get("ref") ?? "");
+  const [error,     setError]     = useState("");
+  const [done,      setDone]      = useState(false);
+  const [bonusMsg,  setBonusMsg]  = useState("");
 
   useEffect(() => {
     getShopSettings().then((s) => setSettings(s));
@@ -43,20 +46,23 @@ function RegisterForm() {
   const refBonus     = settings?.referral_bonus  ?? 200;
   const strength     = pwStrength(password);
 
+  // ── Submit ──────────────────────────────────────────────────
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (!fullName.trim())             { setError("Full name is required.");            return; }
     if (!email.trim().includes("@"))  { setError("A valid email address is required."); return; }
+    // Phone: optional BUT if entered it must be 10 digits
+    if (phone && phone.length !== 10) { setError("Phone number must be exactly 10 digits (or leave it blank)."); return; }
     if (password.length < 6)          { setError("Password must be at least 6 characters."); return; }
     if (password !== confirm)         { setError("Passwords do not match.");           return; }
 
     startTransition(async () => {
       const res = await registerCustomer({
-        fullName: fullName.trim(),
-        email:    email.trim().toLowerCase(),
-        phone:    phone.trim(),
+        fullName:     fullName.trim(),
+        email:        email.trim().toLowerCase(),
+        phone:        phone.trim(),        // auth.ts normalises to +91 or passes "" safely
         password,
         referralCode: refCode.trim() || undefined,
       });
@@ -116,7 +122,7 @@ function RegisterForm() {
       </div>
 
       {/* Full Name */}
-      <Field label="Full Name">
+      <Field label="Full Name *">
         <input
           autoFocus
           className={inputCls}
@@ -127,7 +133,7 @@ function RegisterForm() {
       </Field>
 
       {/* Email */}
-      <Field label="Email Address">
+      <Field label="Email Address *">
         <input
           type="email"
           autoComplete="email"
@@ -138,7 +144,7 @@ function RegisterForm() {
         />
       </Field>
 
-      {/* Phone — business record, not required for auth */}
+      {/* Phone — optional */}
       <Field label="Phone Number (optional)">
         <div className="relative">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500 pointer-events-none select-none">
@@ -158,10 +164,13 @@ function RegisterForm() {
             }}
           />
         </div>
+        {phone.length > 0 && phone.length < 10 && (
+          <p className="text-xs text-slate-500 mt-1">{10 - phone.length} more digits</p>
+        )}
       </Field>
 
       {/* Password */}
-      <Field label="Password">
+      <Field label="Password *">
         <div className="relative">
           <input
             type={showPwd ? "text" : "password"}
@@ -186,9 +195,7 @@ function RegisterForm() {
                 <div
                   key={l}
                   className="h-1 flex-1 rounded-full transition-all duration-300"
-                  style={{
-                    background: strength >= l ? strengthColor(strength) : "#1E2D4A",
-                  }}
+                  style={{ background: strength >= l ? strengthColor(strength) : "#1E2D4A" }}
                 />
               ))}
             </div>
@@ -200,7 +207,7 @@ function RegisterForm() {
       </Field>
 
       {/* Confirm password */}
-      <Field label="Confirm Password">
+      <Field label="Confirm Password *">
         <input
           type="password"
           autoComplete="new-password"
@@ -241,9 +248,15 @@ function RegisterForm() {
         </div>
       )}
 
+      {/* Submit — phone is optional so we don't block on it */}
       <button
         type="submit"
-        disabled={isPending || password !== confirm || password.length < 6}
+        disabled={
+          isPending ||
+          password !== confirm ||
+          password.length < 6 ||
+          (phone.length > 0 && phone.length < 10)   // partial phone = invalid
+        }
         className="w-full py-4 rounded-xl text-base font-bold text-[#0A0F1E] transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
         style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)" }}
       >
@@ -261,6 +274,7 @@ function RegisterForm() {
 }
 
 // ─── Page shell ───────────────────────────────────────────────
+// No <Navbar /> here — the root layout already renders one.
 
 export default function RegisterPage() {
   return (
@@ -290,11 +304,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         <div className="bg-[#0F1729] border border-[#1E2D4A] rounded-3xl p-8 shadow-2xl">
           <h2 className="text-lg font-bold text-white mb-6">Sign Up</h2>
-          <Suspense
-            fallback={
-              <p className="text-slate-500 text-sm text-center py-6">Loading…</p>
-            }
-          >
+          <Suspense fallback={<p className="text-slate-500 text-sm text-center py-6">Loading…</p>}>
             <RegisterForm />
           </Suspense>
         </div>
@@ -305,13 +315,7 @@ export default function RegisterPage() {
 
 // ─── Shared atoms ─────────────────────────────────────────────
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -330,9 +334,9 @@ const inputCls =
 function pwStrength(pw: string): number {
   if (!pw) return 0;
   let s = 0;
-  if (pw.length >= 6)               s++;
-  if (pw.length >= 9)               s++;
-  if (/[A-Z]/.test(pw) || /[0-9]/.test(pw)) s++;
+  if (pw.length >= 6)                              s++;
+  if (pw.length >= 9)                              s++;
+  if (/[A-Z]/.test(pw) || /[0-9]/.test(pw))       s++;
   if (/[^A-Za-z0-9]/.test(pw) || pw.length >= 12) s++;
   return s;
 }

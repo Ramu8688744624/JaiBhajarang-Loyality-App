@@ -434,7 +434,7 @@ export default function BillingTerminal({ adminId, adminName, config }: Props) {
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">🔍</span>
                   <input
                     className="w-full bg-[#0A0F1E] border border-[#1E2D4A] rounded-xl pl-10 pr-10 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#D4A843]/60 focus:ring-1 focus:ring-[#D4A843]/30 transition-all"
-                    placeholder="Phone, email, or name…"
+                    placeholder="Search by name, email, or phone"
                     value={query}
                     onChange={(e) => { setQuery(e.target.value); if (customer) clearAll(); }}
                   />
