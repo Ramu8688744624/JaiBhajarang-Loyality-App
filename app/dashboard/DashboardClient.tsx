@@ -6,8 +6,10 @@
 //      copy CODE only (not URL), expiry warning
 // ══════════════════════════════════════════════════════════════
 
-import { useState } from "react";
-
+import { useState, useEffect } from "react";
+import GiftBanner from "@/components/GiftBanner";
+import { getMyGiftClaims } from "@/lib/actions/gifts";
+import { useRouter } from "next/navigation";
 const TIERS = [
   { label: "Bronze",   min: 0,     max: 4999,   color: "#CD7F32", icon: "🥉" },
   { label: "Silver",   min: 5000,  max: 14999,  color: "#C0C0C0", icon: "🥈" },
@@ -24,23 +26,32 @@ function getNextTier(spent: number) {
 }
 
 interface Props {
-  settings:       any;
-  profile:        any;
-  bills:          any[];
-  milestones:     any[];
-  giftTiers:      any[];
-  userMilestones: any[];
-  pendingReferrals?: any[];  // referees whose first purchase is pending
+  settings:           any;
+  profile:            any;
+  bills:              any[];
+  giftTiers:          any[];
+  userMilestones:     any[];
+  milestoneSettings:  any[];
+  spendRanges:        any[];
+  pendingReferrals?:  any[];  // referees whose first purchase is pending
 }
 
 export default function DashboardClient({
-  settings, profile, bills, milestones, giftTiers, userMilestones,
+  settings, profile, bills, giftTiers, userMilestones, milestoneSettings, spendRanges,
   pendingReferrals = [],
 }: Props) {
   const [tab,          setTab]          = useState<"overview"|"history"|"gifts"|"referral">("overview");
   const [expandedTier, setExpandedTier] = useState<string | null>(null);
   const [codeCopied,   setCodeCopied]   = useState(false);
   const [linkCopied,   setLinkCopied]   = useState(false);
+  const [claims,       setClaims]       = useState<any[]>([]);
+  const [selectedMilestone, setSelectedMilestone] = useState<string | null>(null);
+
+  // Fetch gift claims on component mount
+  useEffect(() => {
+    if (!profile?.id) return;
+    getMyGiftClaims(profile.id).then(setClaims);
+  }, [profile?.id]);
 
   const sym             = String(settings?.currency_symbol ?? "₹");
   const cashbackBal     = Number(profile?.cashback_balance  ?? profile?.wallet_balance ?? 0);
@@ -72,7 +83,7 @@ export default function DashboardClient({
 
   const unlockedIds          = new Set((userMilestones ?? []).map((um: any) => um.milestone_id));
   const unredeemedMilestones = (userMilestones ?? []).filter((um: any) => !um.redeemed);
-  const nextMilestone        = (milestones ?? []).find((m: any) => m.visit_count > visitCount);
+  const nextMilestone        = (milestoneSettings ?? []).find((m: any) => m.visit_count > visitCount);
   const eligibleTier         = [...(giftTiers ?? [])].reverse()
     .find((t: any) => totalSpent >= Number(t.min_spend ?? 0));
 
@@ -196,6 +207,30 @@ export default function DashboardClient({
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
 
+        {/* ──────────── CELEBRATION BANNERS ────────────────── */}
+        {claims.filter((claim: any) => claim.status === 'eligible' || claim.status === 'selected').map((claim: any) => (
+          <GiftBanner
+            key={claim.id}
+            claims={[claim]}
+            currencySymbol={sym}
+            customerId={profile.id}
+          />
+        ))}
+
+        {/* ──────────── GIFT CLAIMS ────────────────────────── */}
+        {claims.filter((claim: any) => claim.status !== 'eligible' && claim.status !== 'selected').length > 0 && (
+          <div className="space-y-3">
+            {claims.filter((claim: any) => claim.status !== 'eligible' && claim.status !== 'selected').map((claim: any) => (
+              <GiftBanner
+                key={claim.id}
+                claims={[claim]}
+                currencySymbol={sym}
+                customerId={profile.id}
+              />
+            ))}
+          </div>
+        )}
+
         {/* ────────────── OVERVIEW ──────────────────────────── */}
         {tab === "overview" && (
           <>
@@ -258,27 +293,94 @@ export default function DashboardClient({
               </div>
             )}
 
-            {/* Milestone progress */}
-            {milestones.length > 0 && (
+            {/* Milestone Roadmap */}
+            {milestoneSettings.length > 0 && (
               <div className="bg-[#0F1729] border border-[#1E2D4A] rounded-2xl p-5">
-                <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wider mb-4">Visit Milestones</p>
-                <div className="space-y-4">
-                  {milestones.slice(0, 5).map((m: any) => {
+                <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wider mb-4">Visit Milestones Roadmap</p>
+                <div className="space-y-3">
+                  {milestoneSettings.slice(0, 5).map((m: any, index: number) => {
                     const unlocked = unlockedIds.has(m.id);
                     const pct = Math.min(100, (visitCount / Number(m.visit_count)) * 100);
+                    const isCompleted = unlocked;
+                    const isInProgress = !unlocked && pct > 0;
+                    const isLocked = !unlocked && pct === 0;
+
                     return (
-                      <div key={m.id}>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm ${unlocked ? "text-[#D4A843]" : "text-slate-600"}`}>{unlocked ? "✓" : "○"}</span>
-                            <span className={`text-sm font-medium ${unlocked ? "text-slate-200" : "text-slate-500"}`}>{m.label}</span>
+                      <div key={m.id || `milestone-${index}`} className="relative">
+                        {/* Connection line */}
+                        {index < milestoneSettings.slice(0, 5).length - 1 && (
+                          <div className="absolute left-4 top-8 w-0.5 h-6 bg-[#1E2D4A]" />
+                        )}
+
+                        <div className="flex items-start gap-3">
+                          {/* Status indicator */}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                            isCompleted ? 'bg-[#D4A843] text-[#0A0F1E]' :
+                            isInProgress ? 'bg-blue-500 text-white' :
+                            'bg-[#1E2D4A] text-slate-500'
+                          }`}>
+                            {isCompleted ? '✓' : isInProgress ? '○' : '🔒'}
                           </div>
-                          <span className="text-xs text-slate-500">{m.visit_count} visits</span>
+
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className={`text-sm font-medium ${
+                                isCompleted ? 'text-[#D4A843]' :
+                                isInProgress ? 'text-slate-200' :
+                                'text-slate-500'
+                              }`}>
+                                {m.label}
+                              </span>
+                              <span className="text-xs text-slate-500">{m.visit_count} visits</span>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div className="h-1.5 bg-[#1E2D4A] rounded-full overflow-hidden mb-2">
+                              <div className="h-full rounded-full transition-all duration-700"
+                                style={{
+                                  width: `${pct}%`,
+                                  background: isCompleted ? "linear-gradient(90deg,#D4A843,#F5D078)" :
+                                             isInProgress ? "linear-gradient(90deg,#2563EB,#3B82F6)" :
+                                             "#1E2D4A"
+                                }} />
+                            </div>
+
+                            {/* Progress text */}
+                            {isCompleted && (
+                              <p className="text-xs text-[#D4A843]">Completed! 🎉</p>
+                            )}
+                            {isInProgress && (
+                              <p className="text-xs text-blue-400">
+                                {m.visit_count - visitCount} visits remaining
+                              </p>
+                            )}
+                            {isLocked && (
+                              <button
+                                onClick={() => setSelectedMilestone(selectedMilestone === m.id ? null : m.id)}
+                                className="text-xs text-slate-400 hover:text-slate-300 transition-colors"
+                              >
+                                {selectedMilestone === m.id ? 'Hide rewards ↑' : 'Discover rewards ↓'}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="h-1.5 bg-[#1E2D4A] rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all duration-700"
-                            style={{ width: `${pct}%`, background: unlocked ? "linear-gradient(90deg,#D4A843,#F5D078)" : "linear-gradient(90deg,#2563EB88,#2563EB)" }} />
-                        </div>
+
+                        {/* Future rewards preview */}
+                        {selectedMilestone === m.id && isLocked && (
+                          <div className="mt-3 ml-11 p-3 bg-[#0A0F1E] border border-[#1E2D4A] rounded-xl">
+                            <p className="text-xs text-slate-400 mb-3">
+                              Unlock this milestone on your <span className="font-semibold text-[#D4A843]">{m.visit_count}th visit</span>! Your gift will be determined by your total spend between your last milestone and this one.
+                            </p>
+                            <button
+                              onClick={() => setTab("gifts")}
+                              className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-center text-[#0A0F1E] transition-all active:scale-[0.98]"
+                              style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)" }}
+                            >
+                              💡 Preview Potential Gifts
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -286,23 +388,7 @@ export default function DashboardClient({
               </div>
             )}
 
-            {/* Eligible gifts preview */}
-            {eligibleTier && (
-              <div className="bg-[#0F1729] rounded-2xl p-5" style={{ border: "1px solid rgba(212,168,67,0.18)" }}>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wider">Eligible Gifts</p>
-                  <button onClick={() => setTab("gifts")} className="text-xs text-blue-400 hover:text-blue-300">View all →</button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(eligibleTier.gift_inventory ?? []).slice(0, 4).map((item: any) => (
-                    <div key={item.id} className="bg-[#0A0F1E] border border-[#1E2D4A] rounded-xl p-3">
-                      <p className="text-sm font-medium text-slate-200">{item.name}</p>
-                      {item.description && <p className="text-xs text-slate-500 mt-1">{item.description}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+
           </>
         )}
 
@@ -372,26 +458,24 @@ export default function DashboardClient({
               </div>
             )}
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Gift Catalog by Tier</p>
-              {(giftTiers ?? []).map((t: any) => {
-                const cfg = TIERS.find((x) => x.label === t.label);
-                const color = cfg?.color ?? "#D4A843";
-                const eligible = totalSpent >= Number(t.min_spend ?? 0);
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Gift Catalog by Spend Range</p>
+              {(spendRanges ?? []).map((range: any) => {
+                const eligible = totalSpent >= Number(range.min_spend ?? 0);
                 return (
-                  <div key={t.id} className={`bg-[#0F1729] border rounded-2xl overflow-hidden mb-3 ${!eligible ? "opacity-50" : "border-[#1E2D4A]"}`}>
-                    <button onClick={() => setExpandedTier(expandedTier === t.id ? null : t.id)}
+                  <div key={range.id} className={`bg-[#0F1729] border rounded-2xl overflow-hidden mb-3 ${!eligible ? "opacity-50" : "border-[#1E2D4A]"}`}>
+                    <button onClick={() => setExpandedTier(expandedTier === range.id ? null : range.id)}
                       className="w-full flex items-center gap-3 px-5 py-4 text-left">
-                      <div className="w-3 h-3 rounded-full" style={{ background: color }} />
-                      <span className="font-bold text-sm flex-1" style={{ color }}>{t.label}</span>
-                      <span className="text-xs text-slate-500">Spend {sym}{Number(t.min_spend).toLocaleString("en-IN")}+</span>
+                      <div className="w-3 h-3 rounded-full" style={{ background: "#D4A843" }} />
+                      <span className="font-bold text-sm flex-1" style={{ color: "#D4A843" }}>{range.label}</span>
+                      <span className="text-xs text-slate-500">Spend {sym}{Number(range.min_spend).toLocaleString("en-IN")}+</span>
                       {eligible ? <span className="text-xs font-bold text-green-400">✓</span> : <span className="text-xs text-slate-600">🔒</span>}
-                      <span className="text-slate-600 ml-1">{expandedTier === t.id ? "▲" : "▼"}</span>
+                      <span className="text-slate-600 ml-1">{expandedTier === range.id ? "▲" : "▼"}</span>
                     </button>
-                    {expandedTier === t.id && (
+                    {expandedTier === range.id && (
                       <div className="border-t border-[#1E2D4A] p-4">
-                        {(t.gift_inventory ?? []).length === 0
+                        {(range.range_gifts ?? []).length === 0
                           ? <p className="text-xs text-slate-600 text-center py-3">No items yet</p>
-                          : <div className="grid grid-cols-2 gap-2">{(t.gift_inventory ?? []).map((item: any) => (
+                          : <div className="grid grid-cols-2 gap-2">{(range.range_gifts ?? []).map((item: any) => (
                               <div key={item.id} className="bg-[#0A0F1E] border border-[#1E2D4A] rounded-xl p-3">
                                 <p className="text-sm font-medium text-slate-200">{item.name}</p>
                                 {item.description && <p className="text-xs text-slate-500 mt-1">{item.description}</p>}

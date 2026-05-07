@@ -8,6 +8,7 @@ import { cookies }      from "next/headers";
 import { redirect }     from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { getShopSettings } from "@/lib/actions/settings";
+import { getSpendRanges, getMilestoneSettings } from "@/lib/actions/gifts";
 import DashboardClient  from "./DashboardClient";
 
 export default async function DashboardPage() {
@@ -32,10 +33,11 @@ export default async function DashboardPage() {
     settingsRes,
     profileRes,
     billsRes,
-    milestonesRes,
     tiersRes,
     userMilestonesRes,
     pendingReferralsRes,
+    milestoneSettingsRes,
+    spendRangesRes,
   ] = await Promise.all([
     getShopSettings(),
 
@@ -58,12 +60,6 @@ export default async function DashboardPage() {
       .limit(20),
 
     svc
-      .from("milestones")
-      .select("id, label, visit_count, reward_type, reward_value")
-      .eq("is_active", true)
-      .order("visit_count"),
-
-    svc
       .from("gift_tiers")
       .select("id, label, min_spend, max_spend, tier_color, gift_inventory(id, name, description, stock, is_active)")
       .eq("is_active", true)
@@ -81,6 +77,9 @@ export default async function DashboardPage() {
       .eq("referred_by", userId)
       .eq("is_first_purchase_done", false)
       .order("created_at", { ascending: false }),
+
+    getMilestoneSettings(),
+    getSpendRanges(),
   ]);
 
   const profile = profileRes.data;
@@ -94,10 +93,11 @@ export default async function DashboardPage() {
       settings={settingsRes}
       profile={profile}
       bills={billsRes.data ?? []}
-      milestones={milestonesRes.data ?? []}
       giftTiers={tiersRes.data ?? []}
       userMilestones={userMilestonesRes.data ?? []}
       pendingReferrals={pendingReferralsRes.data ?? []}
+      milestoneSettings={milestoneSettingsRes ?? []}
+      spendRanges={spendRangesRes ?? []}
     />
   );
 }

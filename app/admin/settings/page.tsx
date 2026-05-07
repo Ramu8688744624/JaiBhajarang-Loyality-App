@@ -17,6 +17,8 @@ import {
   upsertGiftItem,
   type ShopSettings,
 } from "@/lib/actions/settings";
+import MilestoneGiftSettings from "@/components/admin/MilestoneGiftSettings";
+import { getMilestoneSettings, getSpendRanges } from "@/lib/actions/gifts";
 
 // ─── Toast ────────────────────────────────────────────────────
 
@@ -73,6 +75,8 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<ShopSettings | null>(null);
   const [milestones, setMilestones] = useState<any[]>([]);
   const [giftTiers, setGiftTiers] = useState<any[]>([]);
+  const [milestoneSettings, setMilestoneSettings] = useState<any[]>([]);
+  const [spendRanges, setSpendRanges] = useState<any[]>([]);
   const [activeSection, setActiveSection] = useState<string>("shop");
 
   // Form states
@@ -98,7 +102,13 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     async function load() {
-      const [s, m, g] = await Promise.all([getShopSettings(), getMilestones(), getGiftTiers()]);
+      const [s, m, g, ms, sr] = await Promise.all([
+        getShopSettings(),
+        getMilestones(),
+        getGiftTiers(),
+        getMilestoneSettings(),
+        getSpendRanges(),
+      ]);
       if (s) {
         setSettings(s);
         setForm({
@@ -117,6 +127,8 @@ export default function AdminSettingsPage() {
       }
       setMilestones(m);
       setGiftTiers(g);
+      setMilestoneSettings(ms);
+      setSpendRanges(sr);
     }
     load();
   }, []);
@@ -285,23 +297,11 @@ export default function AdminSettingsPage() {
                 </div>
               </SectionCard>
             )}
-            {/* ── Milestones ── */}
-            {activeSection === "milestones" && (
-              <MilestonesSection
-                milestones={milestones}
-                setMilestones={setMilestones}
-                currencySymbol={form.currency_symbol}
-                showToast={showToast}
-              />
-            )}
-
-            {/* ── Gift Tiers ── */}
-            {activeSection === "gifts" && (
-              <GiftTiersSection
-                tiers={giftTiers}
-                setTiers={setGiftTiers}
-                currencySymbol={form.currency_symbol}
-                showToast={showToast}
+            {/* ── Milestones & Gifts (Unified) ── */}
+            {(activeSection === "milestones" || activeSection === "gifts") && (
+              <MilestoneGiftSettings
+                milestones={milestoneSettings}
+                ranges={spendRanges}
               />
             )}
           </div>
@@ -310,238 +310,5 @@ export default function AdminSettingsPage() {
 
       {toast && <Toast msg={toast.msg} type={toast.type} />}
     </div>
-  );
-}
-
-// ─── Milestones Section ───────────────────────────────────────
-
-function MilestonesSection({ milestones, setMilestones, currencySymbol, showToast }: any) {
-  const [adding, setAdding] = useState(false);
-  const [newM, setNewM] = useState({ visit_count: "", label: "", reward_type: "wallet_credit", reward_value: "", is_active: true });
-  const [isPending, startTransition] = useTransition();
-
-  const handleAdd = () => {
-    startTransition(async () => {
-      const res = await upsertMilestone({
-        visit_count: parseInt(newM.visit_count),
-        label: newM.label,
-        reward_type: newM.reward_type,
-        reward_value: newM.reward_value ? parseFloat(newM.reward_value) : null,
-        is_active: true,
-      });
-      if (res.success) {
-        showToast("Milestone added!");
-        setAdding(false);
-        const updated = await getMilestones();
-        setMilestones(updated);
-        setNewM({ visit_count: "", label: "", reward_type: "wallet_credit", reward_value: "", is_active: true });
-      } else {
-        showToast(res.error ?? "Failed", "error");
-      }
-    });
-  };
-
-  const handleDelete = (id: string) => {
-    startTransition(async () => {
-      const res = await deleteMilestone(id);
-      if (res.success) {
-        showToast("Milestone removed");
-        setMilestones((prev: any[]) => prev.filter((m) => m.id !== id));
-      } else showToast(res.error ?? "Failed", "error");
-    });
-  };
-
-  const rewardTypeColors: Record<string, string> = {
-    wallet_credit: "#22C55E",
-    gift_choice: "#D4A843",
-    discount_voucher: "#2563EB",
-  };
-
-  return (
-    <SectionCard title="Visit Milestones" icon="🎯">
-      <div className="space-y-3 mb-4">
-        {milestones.length === 0 && (
-          <p className="text-slate-500 text-sm text-center py-6">No milestones yet. Add one below.</p>
-        )}
-        {milestones.map((m: any) => (
-          <div key={m.id}
-            className="flex items-center gap-3 bg-[#0A0F1E] border border-[#1E2D4A] rounded-xl p-4">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0"
-              style={{ background: `${rewardTypeColors[m.reward_type]}22`, color: rewardTypeColors[m.reward_type] }}>
-              {m.visit_count}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-200">{m.label}</p>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {m.reward_type === "wallet_credit"
-                  ? `${currencySymbol}${m.reward_value} wallet credit`
-                  : m.reward_type === "gift_choice"
-                  ? "Customer chooses a gift"
-                  : "Discount voucher"}
-                {" · "}
-                <span className={m.is_active ? "text-green-400" : "text-red-400"}>
-                  {m.is_active ? "Active" : "Inactive"}
-                </span>
-              </p>
-            </div>
-            <button onClick={() => handleDelete(m.id)} disabled={isPending}
-              className="text-slate-600 hover:text-red-400 transition-colors text-lg p-1">
-              ✕
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {!adding ? (
-        <button onClick={() => setAdding(true)}
-          className="flex items-center gap-2 text-sm font-medium text-[#D4A843] hover:text-[#F5D078] transition-colors">
-          <span className="text-lg">+</span> Add Milestone
-        </button>
-      ) : (
-        <div className="bg-[#0A0F1E] border border-[#D4A843]/30 rounded-xl p-4 space-y-3">
-          <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wider">New Milestone</p>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Visit Count">
-              <input type="number" min="1" className={inputCls} value={newM.visit_count}
-                onChange={(e) => setNewM({ ...newM, visit_count: e.target.value })} placeholder="e.g. 10" />
-            </Field>
-            <Field label="Reward Type">
-              <select className={inputCls} value={newM.reward_type}
-                onChange={(e) => setNewM({ ...newM, reward_type: e.target.value })}>
-                <option value="wallet_credit">Wallet Credit</option>
-                <option value="gift_choice">Gift Choice</option>
-                <option value="discount_voucher">Discount Voucher</option>
-              </select>
-            </Field>
-          </div>
-          <Field label="Label">
-            <input className={inputCls} value={newM.label} placeholder="e.g. 10th Visit Gift"
-              onChange={(e) => setNewM({ ...newM, label: e.target.value })} />
-          </Field>
-          {newM.reward_type === "wallet_credit" && (
-            <Field label={`Amount (${currencySymbol})`}>
-              <input type="number" min="0" className={inputCls} value={newM.reward_value}
-                onChange={(e) => setNewM({ ...newM, reward_value: e.target.value })} />
-            </Field>
-          )}
-          <div className="flex gap-2 pt-1">
-            <button onClick={handleAdd} disabled={isPending || !newM.visit_count || !newM.label}
-              className={`${btnPrimary}`}
-              style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)" }}>
-              {isPending ? "Saving…" : "Add"}
-            </button>
-            <button onClick={() => setAdding(false)}
-              className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all">
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-    </SectionCard>
-  );
-}
-
-// ─── Gift Tiers Section ───────────────────────────────────────
-
-function GiftTiersSection({ tiers, setTiers, currencySymbol, showToast }: any) {
-  const [expandedTier, setExpandedTier] = useState<string | null>(null);
-  const [newItem, setNewItem] = useState<Record<string, { name: string; description: string; stock: string }>>({});
-  const [isPending, startTransition] = useTransition();
-
-  const tierColors: Record<string, string> = {
-    Bronze: "#CD7F32",
-    Silver: "#C0C0C0",
-    Gold: "#FFD700",
-    Platinum: "#E5E4E2",
-  };
-
-  const handleAddItem = (tierId: string) => {
-    const item = newItem[tierId];
-    if (!item?.name) return;
-    startTransition(async () => {
-      const res = await upsertGiftItem({
-        tier_id: tierId,
-        name: item.name,
-        description: item.description,
-        stock: parseInt(item.stock) || 0,
-        is_active: true,
-      });
-      if (res.success) {
-        showToast("Gift item added!");
-        const updated = await getGiftTiers();
-        setTiers(updated);
-        setNewItem((prev) => ({ ...prev, [tierId]: { name: "", description: "", stock: "" } }));
-      } else showToast(res.error ?? "Failed", "error");
-    });
-  };
-
-  return (
-    <SectionCard title="Gift Tiers & Inventory" icon="🎁">
-      <p className="text-xs text-slate-500 mb-4">
-        Customers unlock gift choices based on their total spend crossing a tier threshold.
-      </p>
-      <div className="space-y-3">
-        {tiers.map((tier: any) => {
-          const color = tierColors[tier.label] ?? tier.tier_color ?? "#D4A843";
-          const items: any[] = tier.gift_inventory ?? [];
-          return (
-            <div key={tier.id} className="bg-[#0A0F1E] border border-[#1E2D4A] rounded-xl overflow-hidden">
-              <button
-                onClick={() => setExpandedTier(expandedTier === tier.id ? null : tier.id)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/2 transition-colors">
-                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }} />
-                <span className="font-semibold text-sm" style={{ color }}>{tier.label}</span>
-                <span className="text-xs text-slate-500 flex-1">
-                  {currencySymbol}{tier.min_spend.toLocaleString()}
-                  {tier.max_spend ? ` – ${currencySymbol}${tier.max_spend.toLocaleString()}` : "+"}
-                </span>
-                <span className="text-xs text-slate-600">{items.length} items</span>
-                <span className="text-slate-600 ml-2">{expandedTier === tier.id ? "▲" : "▼"}</span>
-              </button>
-
-              {expandedTier === tier.id && (
-                <div className="border-t border-[#1E2D4A] px-4 py-4 space-y-3">
-                  {items.length === 0 && (
-                    <p className="text-xs text-slate-600 text-center py-2">No items yet</p>
-                  )}
-                  {items.map((item: any) => (
-                    <div key={item.id} className="flex items-start gap-3 py-2 border-b border-[#1E2D4A] last:border-0">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-300">{item.name}</p>
-                        {item.description && (
-                          <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>
-                        )}
-                      </div>
-                      <span className="text-xs text-slate-500 flex-shrink-0">Stock: {item.stock}</span>
-                    </div>
-                  ))}
-
-                  {/* Add item form */}
-                  <div className="pt-2 space-y-2">
-                    <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wider">Add Gift Item</p>
-                    <input className={inputCls} placeholder="Item name *"
-                      value={newItem[tier.id]?.name ?? ""}
-                      onChange={(e) => setNewItem((p) => ({ ...p, [tier.id]: { ...p[tier.id], name: e.target.value } }))} />
-                    <input className={inputCls} placeholder="Description"
-                      value={newItem[tier.id]?.description ?? ""}
-                      onChange={(e) => setNewItem((p) => ({ ...p, [tier.id]: { ...p[tier.id], description: e.target.value } }))} />
-                    <div className="flex gap-2">
-                      <input type="number" className={`${inputCls} w-28`} placeholder="Stock"
-                        value={newItem[tier.id]?.stock ?? ""}
-                        onChange={(e) => setNewItem((p) => ({ ...p, [tier.id]: { ...p[tier.id], stock: e.target.value } }))} />
-                      <button onClick={() => handleAddItem(tier.id)} disabled={isPending}
-                        className={`${btnPrimary} flex-1`}
-                        style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)" }}>
-                        {isPending ? "…" : "+ Add"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </SectionCard>
   );
 }
