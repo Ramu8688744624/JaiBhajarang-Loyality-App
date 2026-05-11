@@ -23,10 +23,10 @@ type Language = "en" | "te" | "hi";
 interface NavLink { href: string; label: string; icon: string }
 
 interface Props {
-  shopName:    string;
-  shopLogoUrl: string | null;
-  userRole:    string | null;
-  userName:    string | null;
+  shopName?: string;
+  logoUrl?: string | null;
+  userRole: string | null;
+  userName: string | null;
 }
 
 // ─── Navigation links per role ────────────────────────────────
@@ -100,7 +100,7 @@ function LanguageSwitcher({ language, onLanguageChange }: LanguageSwitcherProps)
 
 // ─── Component ───────────────────────────────────────────────
 
-export default function NavbarClient({ shopName, shopLogoUrl, userRole, userName }: Props) {
+export default function NavbarClient({ shopName, logoUrl, userRole, userName }: Props) {
   const [menuOpen,   setMenuOpen]   = useState(false);
   const [scrolled,   setScrolled]   = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -194,9 +194,9 @@ export default function NavbarClient({ shopName, shopLogoUrl, userRole, userName
               }
               className="flex items-center gap-2.5 flex-shrink-0 group min-w-0"
             >
-              {shopLogoUrl ? (
+              {logoUrl ? (
                 <img
-                  src={shopLogoUrl}
+                  src={logoUrl}
                   alt={shopName}
                   className="h-9 w-9 rounded-xl object-cover border border-[#D4A843]/30 flex-shrink-0"
                 />
@@ -213,7 +213,7 @@ export default function NavbarClient({ shopName, shopLogoUrl, userRole, userName
                   className="font-bold text-sm truncate max-w-[155px] transition-colors group-hover:text-[#F5D078]"
                   style={{ color: "#D4A843" }}
                 >
-                  {shopName}
+                  {shopName || " "}
                 </p>
                 <p className="text-[10px] text-slate-600 leading-none mt-0.5">Karimnagar</p>
               </div>

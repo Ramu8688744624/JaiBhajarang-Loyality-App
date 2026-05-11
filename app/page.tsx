@@ -8,11 +8,14 @@
 
 import { cookies }      from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { getShopSettings } from "@/lib/actions/settings";
 import HomeClient       from "./HomeClient";
 
 export default async function HomePage() {
   const jar         = await cookies();
   const accessToken = jar.get("sb-access-token")?.value ?? null;
+
+  const settings = await getShopSettings();
 
   let isLoggedIn   = false;
   let dashboardHref = "/dashboard";
@@ -43,5 +46,5 @@ export default async function HomePage() {
     }
   }
 
-  return <HomeClient isLoggedIn={isLoggedIn} dashboardHref={dashboardHref} />;
+  return <HomeClient isLoggedIn={isLoggedIn} dashboardHref={dashboardHref} settings={settings} />;
 }

@@ -1,7 +1,7 @@
 "use client";
 // components/admin/MilestoneGiftSettings.tsx
 // ══════════════════════════════════════════════════════════════
-// Jai Bajrang Mobiles — Admin: Milestone + Spend Range + Gift CRUD
+// Jai Bhajarang Mobiles — Admin: Milestone + Spend Range + Gift CRUD
 //
 // Three collapsible sections:
 //   1. Visit Milestones  — create/edit/delete milestone_settings rows

@@ -1,17 +1,41 @@
 // app/terms/page.tsx  ─ TERMS & CONDITIONS
 // ══════════════════════════════════════════════════════════════
-// Jai Bajrang Mobiles — Loyalty Program Terms
+// Jai Bhajarang Mobiles — Loyalty Program Terms
 // Server component (no auth required — public page)
 // ══════════════════════════════════════════════════════════════
 
 import Link from "next/link";
+import { getShopSettings } from "@/lib/actions/settings";
 
-export const metadata = {
-  title: "Terms & Conditions — Jai Bajrang Mobiles Loyalty",
-  description: "Loyalty rewards program terms, cashback & referral redemption policy for Jai Bajrang Mobiles, Karimnagar.",
-};
+export async function generateMetadata() {
+  const settings = await getShopSettings();
+  return {
+    title: `Terms & Conditions — ${settings?.shop_name || "Jai Bhajarang Mobiles"} Loyalty`,
+    description: `Loyalty rewards program terms, cashback & referral redemption policy for ${settings?.shop_name || "Jai Bhajarang Mobiles"}, Karimnagar.`,
+  };
+}
 
-// ─── Section component ───────────────────────────────────────
+// ─── Shared components ───────────────────────────────────────
+
+function Rule({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <span className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#D4A843", marginTop: "7px" }} />
+      <span>{children}</span>
+    </li>
+  );
+}
+
+function Highlight({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="rounded-xl px-4 py-3 text-sm font-medium"
+      style={{ background: "rgba(212,168,67,0.1)", border: "1px solid rgba(212,168,67,0.3)", color: "#FDE68A" }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function Section({
   id, icon, title, children,
@@ -36,35 +60,16 @@ function Section({
   );
 }
 
-function Rule({ children }: { children: React.ReactNode }) {
-  return (
-    <li className="flex items-start gap-2.5">
-      <span className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#D4A843", marginTop: "7px" }} />
-      <span>{children}</span>
-    </li>
-  );
-}
+export default async function TermsPage() {
+  const settings = await getShopSettings();
 
-function Highlight({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="rounded-xl px-4 py-3 text-sm font-medium"
-      style={{ background: "rgba(212,168,67,0.1)", border: "1px solid rgba(212,168,67,0.3)", color: "#FDE68A" }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────
-
-export default function TermsPage() {
   const sections = [
     "program-overview",
     "joining-bonus",
     "cashback",
     "referral",
     "redemption-limits",
+    "milestone-gift-system",
     "wallet-expiry",
     "general",
   ];
@@ -78,34 +83,9 @@ export default function TermsPage() {
         fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif",
       }}
     >
-      {/* ── Top bar ─────────────────────────────────────────── */}
-      <div
-        className="sticky top-0 z-40 border-b border-[#1E2D4A] bg-[#0A0F1E]/96 backdrop-blur-md"
-      >
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-base"
-              style={{ background: "linear-gradient(135deg,#1B3A6B,#2563EB)" }}
-            >
-              📱
-            </div>
-            <span className="text-sm font-bold" style={{ color: "#D4A843" }}>
-              Jai Bajrang Mobiles
-            </span>
-          </div>
-          <Link
-            href="/"
-            className="text-xs text-slate-500 hover:text-[#D4A843] transition-colors"
-          >
-            ← Back to Home
-          </Link>
-        </div>
-      </div>
-
       {/* ── Header ──────────────────────────────────────────── */}
       <div
-        className="py-12 sm:py-16 px-4 text-center"
+        className="pt-16 sm:pt-20 pb-12 sm:pb-16 px-4 text-center"
         style={{
           background: `
             radial-gradient(ellipse 80% 60% at 50% 0%, rgba(27,58,107,0.55) 0%, transparent 70%),
@@ -124,10 +104,10 @@ export default function TermsPage() {
             Terms & Conditions
           </h1>
           <p className="text-slate-400 text-sm sm:text-base">
-            Jai Bajrang Mobiles, Karimnagar, Telangana
+            {settings?.shop_name || "Jai Bhajarang Mobiles"}, Karimnagar, Telangana
           </p>
           <p className="text-slate-600 text-xs mt-2">
-            Last updated: December 2024 · Effective immediately
+            Last updated: May 2026 · Effective immediately
           </p>
         </div>
       </div>
@@ -136,13 +116,14 @@ export default function TermsPage() {
       <div className="hidden lg:block sticky top-14 z-30 border-b border-[#1E2D4A] bg-[#0A0F1E]/94 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-6 h-12 flex items-center gap-1 overflow-x-auto">
           {[
-            ["#program-overview",  "Overview"],
-            ["#joining-bonus",     "Joining Bonus"],
-            ["#cashback",          "Cashback"],
-            ["#referral",          "Referral"],
-            ["#redemption-limits", "Redemption Limits"],
-            ["#wallet-expiry",     "Expiry"],
-            ["#general",           "General"],
+            ["#program-overview",       "Overview"],
+            ["#joining-bonus",          "Joining Bonus"],
+            ["#cashback",               "Cashback"],
+            ["#referral",               "Referral"],
+            ["#redemption-limits",      "Redemption Limits"],
+            ["#milestone-gift-system",  "Milestone Gifts"],
+            ["#wallet-expiry",          "Expiry"],
+            ["#general",                "General"],
           ].map(([href, label]) => (
             <a
               key={href}
@@ -161,7 +142,7 @@ export default function TermsPage() {
         {/* 1 · Program Overview */}
         <Section id="program-overview" icon="📋" title="1. Program Overview">
           <p>
-            The Jai Bajrang Mobiles Loyalty Program ("Program") is operated by Jai Bajrang Mobiles,
+            The {settings?.shop_name || "Jai Bhajarang Mobiles"} Loyalty Program ("Program") is operated by {settings?.shop_name || "Jai Bhajarang Mobiles"},
             Karimnagar, Telangana. By registering an account and participating in the Program, you
             agree to these Terms & Conditions in full.
           </p>
@@ -188,7 +169,7 @@ export default function TermsPage() {
           <ul className="space-y-2">
             <Rule>The cashback percentage is set globally by shop management (currently 3% of net payment).</Rule>
             <Rule>Cashback is credited to your <strong className="text-white">Cashback Wallet</strong> immediately after each successful transaction.</Rule>
-            <Rule>Cashback cannot be redeemed for cash. It may only be used as a discount on future purchases at Jai Bajrang Mobiles.</Rule>
+            <Rule>Cashback cannot be redeemed for cash. It may only be used as a discount on future purchases at {settings?.shop_name || "Jai Bhajarang Mobiles"}.</Rule>
             <Rule>Cashback is not earned on the discounted portion of a bill (i.e., cashback is calculated on what you actually pay, not the original amount).</Rule>
           </ul>
         </Section>
@@ -269,8 +250,30 @@ export default function TermsPage() {
           </div>
         </Section>
 
-        {/* 6 · Wallet Expiry */}
-        <Section id="wallet-expiry" icon="⏰" title="6. Wallet Balance Expiry">
+        {/* 6 · Milestone Gift System */}
+        <Section id="milestone-gift-system" icon="🎁" title="6. Milestone Gift System">
+          <p>
+            As a token of appreciation for your continued loyalty, {settings?.shop_name || "Jai Bhajarang Mobiles"} offers physical milestone gifts
+            at specific visit thresholds. These gifts are earned based on the cumulative number of visits to our shop.
+          </p>
+          <ul className="space-y-2 mt-4">
+            <Rule><strong className="text-white">5 Visits:</strong> Earn your first milestone gift after completing 5 visits.</Rule>
+            <Rule><strong className="text-white">10 Visits:</strong> Receive a special gift after 10 visits.</Rule>
+            <Rule><strong className="text-white">25 Visits:</strong> Unlock the premium milestone gift after 25 visits.</Rule>
+          </ul>
+          <p className="mt-4">
+            The value and type of each milestone gift depends on the total spend in that specific visit window.
+            Higher spending in the qualifying period may qualify you for more valuable gifts. Gifts are physical items
+            and cannot be exchanged for cash or transferred to your wallet balance.
+          </p>
+          <p className="mt-2">
+            Milestone gifts are awarded automatically at the billing terminal upon reaching the visit threshold.
+            Visit counts reset with each new milestone, and you can earn multiple gifts as your loyalty grows.
+          </p>
+        </Section>
+
+        {/* 7 · Wallet Expiry */}
+        <Section id="wallet-expiry" icon="⏰" title="7. Wallet Balance Expiry">
           <p>All wallet balances (Cashback and Referral) are subject to an expiry policy.</p>
           <ul className="space-y-2 mt-2">
             <Rule>Wallet balances expire after <strong className="text-white">365 days</strong> (configurable by management) from the date of your last purchase.</Rule>
@@ -281,11 +284,11 @@ export default function TermsPage() {
           </ul>
         </Section>
 
-        {/* 7 · General */}
-        <Section id="general" icon="📌" title="7. General Terms">
+        {/* 8 · General */}
+        <Section id="general" icon="📌" title="8. General Terms">
           <ul className="space-y-2">
-            <Rule>The Program is available only to registered customers of Jai Bajrang Mobiles, Karimnagar.</Rule>
-            <Rule>Jai Bajrang Mobiles reserves the right to modify, suspend, or terminate the Program, or any of its benefits, at any time with reasonable notice.</Rule>
+            <Rule>The Program is available only to registered customers of {settings?.shop_name || "Jai Bhajarang Mobiles"}, Karimnagar.</Rule>
+            <Rule>{settings?.shop_name || "Jai Bhajarang Mobiles"} reserves the right to modify, suspend, or terminate the Program, or any of its benefits, at any time with reasonable notice.</Rule>
             <Rule>Rewards have no cash value and cannot be exchanged for money.</Rule>
             <Rule>In case of suspected fraud, abuse, or violation of these terms, the shop reserves the right to cancel the account and forfeit any accumulated rewards without notice.</Rule>
             <Rule>These terms are governed by the laws of the State of Telangana, India.</Rule>
@@ -298,7 +301,7 @@ export default function TermsPage() {
           className="rounded-2xl p-7 text-center"
           style={{ background: "rgba(27,58,107,0.25)", border: "1px solid #1E2D4A" }}
         >
-          <p className="text-xl font-black mb-2" style={{ color: "#D4A843" }}>Jai Bajrang Mobiles</p>
+          <p className="text-xl font-black mb-2" style={{ color: "#D4A843" }}>{settings?.shop_name || "Jai Bhajarang Mobiles"}</p>
           <p className="text-slate-400 text-sm mb-5">Karimnagar, Telangana · Open 10 AM – 9 PM</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -321,7 +324,7 @@ export default function TermsPage() {
       {/* Footer */}
       <footer className="border-t border-[#1E2D4A] py-6 px-4 text-center mt-4">
         <p className="text-xs text-slate-600">
-          © 2024 Jai Bajrang Mobiles, Karimnagar. These terms were last updated December 2024.
+          © {new Date().getFullYear()} {settings?.shop_name || "Jai Bhajarang Mobiles"}, Karimnagar. These terms were last updated May 2026.
         </p>
       </footer>
     </div>

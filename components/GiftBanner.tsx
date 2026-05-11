@@ -1,7 +1,7 @@
 "use client";
 // components/GiftBanner.tsx
 // ══════════════════════════════════════════════════════════════
-// Jai Bajrang Mobiles — Gift Claim Banner (Customer Side)
+// Jai Bhajarang Mobiles — Gift Claim Banner (Customer Side)
 //
 // Renders one banner per active (eligible | selected) gift claim.
 // State 1 — eligible: celebratory banner + gift picker

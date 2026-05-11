@@ -30,6 +30,8 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const settings = await getShopSettings();
+
   return (
     <html lang="en" className={`${dmSans.variable} ${dmSerif.variable}`}>
       <head>
@@ -48,7 +50,7 @@ export default async function RootLayout({
         />
 
         {/* The new server-side Navbar handles its own session logic */}
-        <Navbar />
+        <Navbar shopName={settings?.shop_name} logoUrl={settings?.shop_logo_url} />
 
         <main className="relative z-10">
           {children}

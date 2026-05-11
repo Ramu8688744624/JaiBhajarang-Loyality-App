@@ -12,7 +12,7 @@ import { cookies }       from "next/headers";
 import { createClient }  from "@supabase/supabase-js";
 import NavbarClient      from "./NavbarClient";
 
-export default async function Navbar() {
+export default async function Navbar({ shopName, logoUrl }: { shopName?: string; logoUrl?: string | null }) {
   // Read httpOnly session cookie
   const jar         = await cookies();
   const accessToken = jar.get("sb-access-token")?.value ?? null;
@@ -23,20 +23,13 @@ export default async function Navbar() {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  // Fetch shop settings (never hardcode the name)
-  const { data: settings } = await svc
-    .from("shop_settings")
-    .select("shop_name, shop_logo_url")
-    .limit(1)
-    .single();
-
-  // Normalise misspellings at the data layer
-  const rawName = String(settings?.shop_name ?? "").trim();
-  const shopName =
+  // Normalise shop name if provided and preserve fallback defaults
+  const rawName = String(shopName ?? "").trim();
+  const normalizedShopName =
     rawName === "" ||
     rawName.toLowerCase() === "jai bhajarang" ||
     rawName.toLowerCase() === "jai bhajarang mobiles"
-      ? "Jai Bajrang Mobiles"
+      ? "Jai Bhajarang Mobiles"
       : rawName;
 
   let userId:   string | null = null;
@@ -59,8 +52,8 @@ export default async function Navbar() {
 
   return (
     <NavbarClient
-      shopName={shopName}
-      shopLogoUrl={settings?.shop_logo_url ?? null}
+      shopName={normalizedShopName}
+      logoUrl={logoUrl ?? null}
       userRole={userRole}
       userName={userName}
     />

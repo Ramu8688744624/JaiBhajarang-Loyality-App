@@ -268,6 +268,7 @@ export interface RegisterPayload {
   phone:         string;        // business record, not used for auth
   password:      string;
   referralCode?: string;
+  acceptedTerms: boolean;
 }
 
 export async function registerCustomer(
@@ -281,29 +282,31 @@ export async function registerCustomer(
       ? String(payload.referralCode).trim().toUpperCase()
       : undefined;
 
-    // Normalise phone → +91XXXXXXXXXX (10-digit Indian numbers)
-    const phone = await normalisePhone(payload.phone);
+    // Normalise phone → +91XXXXXXXXXX (10-digit Indian numbers) or "" if empty
+    const phone = payload.phone ? await normalisePhone(payload.phone) : "";
 
     // ── Validation ─────────────────────────────────────────────
     if (!fullName)
       return { success: false, error: "Full name is required." };
     if (!emailStr || !emailStr.includes("@"))
       return { success: false, error: "A valid email address is required." };
-    if (!phone || phone.length !== 13 || !phone.startsWith("+91"))
+    if (phone && (phone.length !== 13 || !phone.startsWith("+91")))
       return { success: false, error: "A valid 10-digit Indian phone number is required." };
     if (passwordStr.length < 6)
       return { success: false, error: "Password must be at least 6 characters." };
+    if (!payload.acceptedTerms)
+      return { success: false, error: "You must agree to the Terms & Conditions." };
 
     const svc = svcClient();
 
     // ── Duplicate checks ───────────────────────────────────────
-    const [emailCheck, phoneCheck] = await Promise.all([
-      svc.from("profiles").select("id").eq("email", emailStr).maybeSingle(),
-      svc.from("profiles").select("id").eq("phone", phone).maybeSingle(),
-    ]);
+    const checks = [];
+    checks.push(svc.from("profiles").select("id").eq("email", emailStr).maybeSingle());
+    if (phone) checks.push(svc.from("profiles").select("id").eq("phone", phone).maybeSingle());
+    const [emailCheck, phoneCheck] = await Promise.all(checks);
     if (emailCheck.data)
       return { success: false, error: "An account with this email already exists." };
-    if (phoneCheck.data)
+    if (phone && phoneCheck?.data)
       return { success: false, error: "This phone number is already registered." };
 
     // ── Validate referral code (reject unknown codes early) ────
@@ -329,6 +332,7 @@ export async function registerCustomer(
         phone:            phone,
         username:         emailToUsername(emailStr),
         referred_by_code: referralCode ?? null,
+        accepted_terms:   payload.acceptedTerms,
       },
     });
 

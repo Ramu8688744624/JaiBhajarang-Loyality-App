@@ -1,7 +1,7 @@
 "use client";
 // app/reset-password/page.tsx  ─ EMAIL RESET FINAL
 // ══════════════════════════════════════════════════════════════
-// Jai Bajrang Mobiles — Reset Password
+// Jai Bhajarang Mobiles — Reset Password
 //
 // Supabase embeds the token in the URL hash as:
 //   /reset-password#access_token=XXX&type=recovery
@@ -243,7 +243,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           🔑
         </div>
         <h1 className="text-2xl font-bold text-white">New Password</h1>
-        <p className="text-slate-400 text-sm mt-1">Jai Bajrang Mobiles</p>
+        <p className="text-slate-400 text-sm mt-1">Jai Bhajarang Mobiles</p>
       </div>
       <div className="w-full max-w-sm">
         <div className="bg-[#0F1729] border border-[#1E2D4A] rounded-3xl p-8 shadow-2xl">

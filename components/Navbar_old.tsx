@@ -1,7 +1,7 @@
 "use client";
 // components/Navbar.tsx  ─ PRODUCTION FINAL
 // ══════════════════════════════════════════════════════════════
-// Jai Bajrang Mobiles — Dynamic Navbar
+// Jai Bhajarang Mobiles — Dynamic Navbar
 //
 // • Shop name + logo fetched from DB (never hardcoded)
 // • Role-aware nav links (super_admin / admin / customer)
@@ -95,8 +95,8 @@ export default function Navbar({
       const name = s.shop_name?.trim();
       // Normalise common misspellings
       const display = (name === "Jai Bhajarang" || name === "Jai Bhajarang Mobiles")
-        ? "Jai Bajrang Mobiles"
-        : (name || "Jai Bajrang Mobiles");
+        ? "Jai Bhajarang Mobiles"
+        : (name || "Jai Bhajarang Mobiles");
       setShopName(display);
       setLogoUrl(s.shop_logo_url ?? null);
     });
@@ -136,7 +136,7 @@ export default function Navbar({
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
 
-  const displayName = shopName || "Jai Bajrang Mobiles";
+  const displayName = shopName || "Jai Bhajarang Mobiles";
 
   return (
     <>

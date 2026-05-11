@@ -36,6 +36,7 @@ function RegisterForm() {
   const [error,     setError]     = useState("");
   const [done,      setDone]      = useState(false);
   const [bonusMsg,  setBonusMsg]  = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     getShopSettings().then((s) => setSettings(s));
@@ -65,6 +66,7 @@ function RegisterForm() {
         phone:        phone.trim(),        // auth.ts normalises to +91 or passes "" safely
         password,
         referralCode: refCode.trim() || undefined,
+        acceptedTerms,
       });
 
       if (!res.success) { setError(res.error ?? "Registration failed."); return; }
@@ -240,6 +242,23 @@ function RegisterForm() {
         />
       </Field>
 
+      {/* Terms & Conditions */}
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          id="acceptedTerms"
+          checked={acceptedTerms}
+          onChange={(e) => setAcceptedTerms(e.target.checked)}
+          className="mt-1 w-4 h-4 text-[#D4A843] bg-[#0A0F1E] border border-[#1E2D4A] rounded focus:ring-[#D4A843] focus:ring-2"
+        />
+        <label htmlFor="acceptedTerms" className="text-sm text-slate-300 leading-relaxed">
+          I agree to the{" "}
+          <Link href="/terms" className="text-[#D4A843] hover:text-[#F5D078] underline">
+            Terms & Conditions
+          </Link>
+        </label>
+      </div>
+
       {/* Error */}
       {error && (
         <div className="flex items-start gap-2 bg-red-950/60 border border-red-800/50 rounded-xl px-4 py-3">
@@ -255,9 +274,12 @@ function RegisterForm() {
           isPending ||
           password !== confirm ||
           password.length < 6 ||
-          (phone.length > 0 && phone.length < 10)   // partial phone = invalid
+          (phone.length > 0 && phone.length < 10) ||   // partial phone = invalid
+          !acceptedTerms
         }
-        className="w-full py-4 rounded-xl text-base font-bold text-[#0A0F1E] transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+        className={`w-full py-4 rounded-xl text-base font-bold text-[#0A0F1E] transition-all active:scale-[0.98] ${
+          !acceptedTerms ? "opacity-50 cursor-not-allowed" : ""
+        }`}
         style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)" }}
       >
         {isPending ? <Spinner label="Creating account…" /> : "Create Account"}
@@ -296,7 +318,7 @@ export default function RegisterPage() {
           📱
         </div>
         <h1 className="text-2xl font-bold text-white tracking-tight">
-          Jai Bajrang Mobiles
+          Jai Bhajarang Mobiles
         </h1>
         <p className="text-slate-400 text-sm mt-1">Create your loyalty account</p>
       </div>

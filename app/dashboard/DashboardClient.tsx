@@ -1,7 +1,7 @@
 "use client";
 // app/dashboard/DashboardClient.tsx  ─ v4 FINAL
 // ══════════════════════════════════════════════════════════════
-// Jai Bajrang Mobiles — Customer Dashboard
+// Jai Bhajarang Mobiles — Customer Dashboard
 // New: dual wallet display, pending referral dashlet,
 //      copy CODE only (not URL), expiry warning
 // ══════════════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 "use client";
 // app/HomeClient.tsx
 // ══════════════════════════════════════════════════════════════
-// Jai Bajrang Mobiles — Homepage UI (client component)
+// Jai Bhajarang Mobiles — Homepage UI (client component)
 // Receives isLoggedIn + dashboardHref from server — no useEffect
 // needed for the login button. Language is synced via URL param
 // and localStorage for persistence.
@@ -16,7 +16,7 @@ const T = {
   en: {
     city:           "Karimnagar, Telangana",
     tagline:        "Karimnagar's Most Trusted Mobile Repair Shop",
-    since:          "Serving Karimnagar since 2019  ·  10,000+ Happy Customers",
+    since:          "Serving Karimnagar since 2019  ·  5,000+ Happy Customers",
     btn_dashboard:  "My Dashboard →",
     btn_login:      "Customer Login",
     btn_register:   "Join & Get ₹500 Bonus",
@@ -42,20 +42,20 @@ const T = {
       "Exclusive gifts at loyalty milestones",
     ],
     stats: [
-      { value: "5+",      label: "Years in Karimnagar" },
-      { value: "10,000+", label: "Happy Customers" },
+      { value: "7+",      label: "Years in Karimnagar" },
+      { value: "5,000+", label: "Happy Customers" },
       { value: "30 min",  label: "Display Change" },
       { value: "100%",    label: "Satisfaction" },
     ],
     contact_title: "Find Us",
     contact_info:  "Karimnagar, Telangana  ·  Open 10 AM – 9 PM, All Days",
-    footer:        "© 2024 Jai Bajrang Mobiles, Karimnagar. All rights reserved.",
+    footer:        "© 2026 Jai Bhajarang Mobiles, Karimnagar. All rights reserved.",
     terms_link:    "Terms & Conditions",
   },
   te: {
     city:           "కరీంనగర్, తెలంగాణ",
     tagline:        "కరీంనగర్ లో అత్యంత విశ్వసనీయ మొబైల్ రిపేర్ షాప్",
-    since:          "2019 నుండి కరీంనగర్ కు సేవ · 10,000+ సంతోష కస్టమర్లు",
+    since:          "2019 నుండి కరీంనగర్ కు సేవ · 5,000+ సంతోష కస్టమర్లు",
     btn_dashboard:  "నా డాష్‌బోర్డ్ →",
     btn_login:      "కస్టమర్ లాగిన్",
     btn_register:   "చేరండి & ₹500 బోనస్ పొందండి",
@@ -81,20 +81,20 @@ const T = {
       "మైల్‌స్టోన్ గిఫ్ట్‌లు",
     ],
     stats: [
-      { value: "5+",      label: "సంవత్సరాల సేవ" },
-      { value: "10,000+", label: "సంతోష కస్టమర్లు" },
+      { value: "7+",      label: "సంవత్సరాల సేవ" },
+      { value: "5,000+", label: "సంతోష కస్టమర్లు" },
       { value: "30 నిమి", label: "డిస్ప్లే మార్పు" },
       { value: "100%",    label: "సంతృప్తి" },
     ],
     contact_title: "మాకు కనుగొనండి",
     contact_info:  "కరీంనగర్, తెలంగాణ · ఉదయం 10 – రాత్రి 9, అన్ని రోజులు",
-    footer:        "© 2024 జై బజరంగ్ మొబైల్స్, కరీంనగర్.",
+    footer:        "© 2026 జై బజరంగ్ మొబైల్స్, కరీంనగర్.",
     terms_link:    "నిబంధనలు & షరతులు",
   },
   hi: {
     city:           "करीमनगर, तेलंगाना",
     tagline:        "करीमनगर का सबसे भरोसेमंद मोबाइल रिपेयर शॉप",
-    since:          "2019 से करीमनगर की सेवा में · 10,000+ खुश ग्राहक",
+    since:          "2019 से करीमनगर की सेवा में · 5,000+ खुश ग्राहक",
     btn_dashboard:  "मेरा डैशबोर्ड →",
     btn_login:      "कस्टमर लॉगिन",
     btn_register:   "जॉइन करें & ₹500 बोनस पाएं",
@@ -120,14 +120,14 @@ const T = {
       "माइलस्टोन गिफ्ट्स",
     ],
     stats: [
-      { value: "5+",      label: "साल की सेवा" },
-      { value: "10,000+", label: "खुश ग्राहक" },
+      { value: "7+",      label: "साल की सेवा" },
+      { value: "5,000+", label: "खुश ग्राहक" },
       { value: "30 मिनट", label: "डिस्प्ले चेंज" },
       { value: "100%",    label: "संतुष्टि" },
     ],
     contact_title: "हमें खोजें",
     contact_info:  "करीमनगर, तेलंगाना · सुबह 10 – रात 9, सभी दिन",
-    footer:        "© 2024 जय बजरंग मोबाइल्स, करीमनगर।",
+    footer:        "© 2026 जय बजरंग मोबाइल्स, करीमनगर।",
     terms_link:    "नियम और शर्तें",
   },
 };
@@ -137,9 +137,11 @@ const T = {
 export default function HomeClient({
   isLoggedIn,
   dashboardHref,
+  settings,
 }: {
   isLoggedIn:    boolean;
   dashboardHref: string;
+  settings:      any;
 }) {
   const [mounted, setMounted] = useState(false);
   
@@ -219,7 +221,7 @@ export default function HomeClient({
               WebkitTextFillColor: "transparent",
             }}
           >
-            Jai Bajrang Mobiles
+            Jai Bhajarang Mobiles
           </h1>
 
           <p className="text-lg sm:text-xl font-semibold text-slate-300 mb-2">{t.tagline}</p>
@@ -376,7 +378,7 @@ export default function HomeClient({
 
       {/* ── Footer ───────────────────────────────────────── */}
       <footer className="border-t border-[#1E2D4A] py-6 px-4 text-center">
-        <p className="text-xs text-slate-600">{t.footer}</p>
+        <p className="text-xs text-slate-600">© 2026 {settings?.shop_name || "Jai Bhajarang Mobiles"}, Karimnagar. All rights reserved.</p>
         <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
           <Link href="/login"    className="text-xs text-slate-600 hover:text-[#D4A843] transition-colors">Login</Link>
           <Link href="/register" className="text-xs text-slate-600 hover:text-[#D4A843] transition-colors">Register</Link>
