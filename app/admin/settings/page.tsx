@@ -300,6 +300,7 @@ export default function AdminSettingsPage() {
             {/* ── Milestones & Gifts (Unified) ── */}
             {(activeSection === "milestones" || activeSection === "gifts") && (
               <MilestoneGiftSettings
+                key={milestoneSettings.length + spendRanges.length}
                 milestones={milestoneSettings}
                 ranges={spendRanges}
               />

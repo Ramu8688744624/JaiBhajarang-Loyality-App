@@ -340,6 +340,11 @@ export async function processBill(payload: BillPayload): Promise<BillResult> {
     finalRedemptionPct = Math.min(availableBalance, perVisitLimit, Number(grossAmount));
   }
 
+  // 3.5. None Logic: No discount when 'none' is selected
+  if (walletSource === "none") {
+    finalRedemptionPct = 0;
+  }
+
   // 4. Execute Transaction via Database RPC
   // Note: We use 'svc' here because that is how it is defined at the top of your function
   const { data: rpcData, error: rpcErr } = await svc.rpc("process_bill", {

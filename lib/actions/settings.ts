@@ -78,9 +78,9 @@ export async function updateShopSettings(
 
   // Bust every cached route that displays the shop name / config
   revalidatePath("/", "layout");           // Navbar / root layout
-  revalidatePath("/admin/settings");
-  revalidatePath("/admin/billing");
-  revalidatePath("/dashboard");
+  revalidatePath("/admin/settings", "page");
+  revalidatePath("/admin/billing", "page");
+  revalidatePath("/dashboard", "page");
   
   return { success: true };
 }
@@ -108,7 +108,8 @@ export async function upsertMilestone(milestone: {
     .upsert(milestone, { onConflict: "id" });
 
   if (error) return { success: false, error: error.message };
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "page");
+  revalidatePath("/dashboard", "page");
   return { success: true };
 }
 
@@ -118,7 +119,8 @@ export async function deleteMilestone(id: string) {
     .delete()
     .eq("id", id);
   if (error) return { success: false, error: error.message };
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "page");
+  revalidatePath("/dashboard", "page");
   return { success: true };
 }
 
@@ -144,7 +146,8 @@ export async function upsertGiftTier(tier: {
     .from("gift_tiers")
     .upsert(tier, { onConflict: "id" });
   if (error) return { success: false, error: error.message };
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "page");
+  revalidatePath("/dashboard", "page");
   return { success: true };
 }
 
@@ -161,6 +164,7 @@ export async function upsertGiftItem(item: {
     .from("gift_inventory")
     .upsert(item, { onConflict: "id" });
   if (error) return { success: false, error: error.message };
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/settings", "page");
+  revalidatePath("/dashboard", "page");
   return { success: true };
 }
