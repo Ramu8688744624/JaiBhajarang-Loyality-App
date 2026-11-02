@@ -213,7 +213,7 @@ export async function searchCustomers(
 // ══════════════════════════════════════════════════════════════
 
 // ─── Pure calculation engine for bill preview & unit testing ───────
-export function calculateBillDetails(params: {
+export async function calculateBillDetails(params: {
   grossAmount: number;
   redemptionPct: number;
   cashbackPct: number;
