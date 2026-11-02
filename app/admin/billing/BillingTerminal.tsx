@@ -248,6 +248,10 @@ export default function BillingTerminal({ adminId, adminName, config }: Props) {
   const [showReg,     setShowReg]     = useState(false);
   const [resetTarget, setResetTarget] = useState<CustomerSearchResult | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [itemNote, setItemNote] = useState("");
+  const [receiptCust, setReceiptCust] = useState<CustomerSearchResult | null>(null);
+  const [receiptItem, setReceiptItem] = useState("");
+  const [showReceipt, setShowReceipt] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
   const showToast = useCallback((msg: string, type: "success" | "error" = "success") =>
@@ -369,6 +373,8 @@ export default function BillingTerminal({ adminId, adminName, config }: Props) {
 
         if (res.success && res.bill) {
           setLastBill(res.bill);
+          setReceiptCust(customer);
+          setReceiptItem(itemNote);
           setCustomer((p) => p ? {
             ...p,
             cashback_balance: Number(res.newCashbackBalance ?? 0),
@@ -376,6 +382,7 @@ export default function BillingTerminal({ adminId, adminName, config }: Props) {
             wallet_balance:   Number(res.newCashbackBalance ?? 0) + Number(res.newReferralBalance ?? 0),
           } : p);
           setGrossAmt("");
+          setItemNote("");
           setPreview(null);
           setPayMethod(null);
           showToast("Bill Generated Successfully! 🎉", "success");
@@ -527,6 +534,19 @@ export default function BillingTerminal({ adminId, adminName, config }: Props) {
                     {sym}{a}
                   </button>
                 ))}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-[#1E2D4A]">
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+                  Item / Service Note (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={itemNote}
+                  onChange={(e) => setItemNote(e.target.value)}
+                  placeholder="e.g. iPhone Screen Replacement, Fast Charger, Cover"
+                  className="w-full bg-[#0A0F1E] border border-[#1E2D4A] rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-[#D4A843]/60 focus:ring-1 focus:ring-[#D4A843]/30"
+                />
               </div>
             </div>
 
@@ -683,16 +703,60 @@ export default function BillingTerminal({ adminId, adminName, config }: Props) {
             {/* Last receipt */}
             {lastBill && (
               <div className="bg-[#0F1729] rounded-2xl p-5" style={{ border: "1px solid rgba(34,197,94,0.35)" }}>
-                <p className="text-sm font-bold text-green-400 mb-4">✓ Bill Processed!</p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-slate-400">Charged</span><span>{sym}{Number(lastBill.net_amount).toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Discount</span><span className="text-blue-400">−{sym}{Number(lastBill.redemption_amount).toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Cashback</span><span className="text-green-400">+{sym}{Number(lastBill.cashback_earned).toFixed(2)}</span></div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-bold text-green-400">✓ Bill Processed Successfully!</p>
+                  <span className="text-xs px-2 py-0.5 rounded bg-green-950 text-green-400 border border-green-800/40">Paid</span>
                 </div>
-                <button onClick={() => setLastBill(null)}
-                  className="mt-4 w-full py-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 border border-[#1E2D4A]">
-                  Clear
-                </button>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-400">Gross</span><span>{sym}{Number(lastBill.gross_amount).toFixed(2)}</span></div>
+                  {Number(lastBill.redemption_amount) > 0 && (
+                    <div className="flex justify-between"><span className="text-slate-400">Discount</span><span className="text-blue-400">−{sym}{Number(lastBill.redemption_amount).toFixed(2)}</span></div>
+                  )}
+                  <div className="flex justify-between border-t border-[#1E2D4A] pt-1.5"><span className="text-slate-200 font-semibold">Net Paid</span><span className="text-white font-bold">{sym}{Number(lastBill.net_amount).toFixed(2)}</span></div>
+                  {Number(lastBill.cashback_earned) > 0 && (
+                    <div className="flex justify-between"><span className="text-green-400">Cashback Credited</span><span className="text-green-400 font-semibold">+{sym}{Number(lastBill.cashback_earned).toFixed(2)}</span></div>
+                  )}
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {/* WhatsApp button */}
+                  {receiptCust?.phone && (
+                    <a
+                      href={`https://wa.me/${receiptCust.phone.replace(/[^0-9]/g, "").startsWith("91") ? receiptCust.phone.replace(/[^0-9]/g, "") : "91" + receiptCust.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                        `*JAI BHAJARANG MOBILES* 📱✨\n_Karimnagar's Trusted Mobile Shop_\n\n` +
+                        `Dear *${receiptCust.full_name ?? receiptCust.username}*, thank you for your visit! 🙏\n\n` +
+                        (receiptItem ? `📦 *Item:* ${receiptItem}\n` : "") +
+                        `🧾 *Invoice:* ${lastBill.id ? String(lastBill.id).slice(0, 8).toUpperCase() : "PAID"}\n` +
+                        `💵 *Bill Amount:* ${sym}${Number(lastBill.gross_amount).toFixed(2)}\n` +
+                        (Number(lastBill.redemption_amount) > 0 ? `🏷️ *Wallet Discount:* -${sym}${Number(lastBill.redemption_amount).toFixed(2)}\n` : "") +
+                        `💰 *Amount Paid:* ${sym}${Number(lastBill.net_amount).toFixed(2)}\n` +
+                        (Number(lastBill.cashback_earned) > 0 ? `🎉 *Cashback Earned:* +${sym}${Number(lastBill.cashback_earned).toFixed(2)}\n` : "") +
+                        `💳 *Total Wallet Balance:* ${sym}${((receiptCust.cashback_balance || 0) + (receiptCust.referral_balance || 0)).toFixed(2)}\n\n` +
+                        `🪔 *Happy Diwali!* Visit us again soon for best deals and rewards!`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold bg-[#25D366] text-slate-950 hover:bg-[#20bd5a] transition-all shadow-md"
+                    >
+                      <span>💬</span> Send Receipt on WhatsApp
+                    </a>
+                  )}
+
+                  <button
+                    onClick={() => setShowReceipt(true)}
+                    className="w-full py-2.5 rounded-xl text-xs font-bold text-[#0A0F1E] transition-all"
+                    style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)" }}
+                  >
+                    🧾 View & Print Receipt Slip
+                  </button>
+
+                  <button
+                    onClick={() => { setLastBill(null); setReceiptCust(null); setReceiptItem(""); }}
+                    className="w-full py-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 border border-[#1E2D4A] transition-colors"
+                  >
+                    Clear / Next Transaction
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -709,6 +773,104 @@ export default function BillingTerminal({ adminId, adminName, config }: Props) {
         <ResetPwdModal customer={resetTarget} onClose={() => setResetTarget(null)}
           onSuccess={() => { showToast(`Password reset for ${resetTarget.full_name ?? resetTarget.username}`); setResetTarget(null); }} />
       )}
+            {/* Receipt Slip Modal */}
+      {showReceipt && lastBill && (
+        <Overlay onClose={() => setShowReceipt(false)}>
+          <div className="text-slate-200">
+            {/* Store Header */}
+            <div className="text-center pb-4 border-b border-[#1E2D4A]">
+              <h2 className="text-xl font-black text-[#D4A843]">Jai Bhajarang Mobiles</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Karimnagar, Telangana</p>
+              <p className="text-[11px] text-slate-500">Phone: +91 98765 43210</p>
+              <div className="mt-2 inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                🪔 DIWALI FESTIVE RECEIPT
+              </div>
+            </div>
+
+            {/* Bill Meta */}
+            <div className="py-3 border-b border-[#1E2D4A] text-xs space-y-1">
+              <div className="flex justify-between text-slate-400">
+                <span>Invoice:</span>
+                <span className="font-mono text-slate-200">{lastBill.id ? String(lastBill.id).slice(0, 8).toUpperCase() : "PAID"}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Date:</span>
+                <span className="text-slate-200">{new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Customer:</span>
+                <span className="text-slate-200 font-semibold">{receiptCust?.full_name ?? receiptCust?.username ?? "Customer"}</span>
+              </div>
+              {receiptCust?.phone && (
+                <div className="flex justify-between text-slate-400">
+                  <span>Phone:</span>
+                  <span className="text-slate-200 font-mono">{receiptCust.phone}</span>
+                </div>
+              )}
+              {receiptItem && (
+                <div className="flex justify-between text-slate-400">
+                  <span>Item:</span>
+                  <span className="text-slate-200 truncate max-w-[180px]">{receiptItem}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Charges */}
+            <div className="py-3 border-b border-[#1E2D4A] space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Gross Total</span>
+                <span className="font-semibold">{sym}{Number(lastBill.gross_amount).toFixed(2)}</span>
+              </div>
+              {Number(lastBill.redemption_amount) > 0 && (
+                <div className="flex justify-between text-blue-400">
+                  <span>Wallet Discount</span>
+                  <span>− {sym}{Number(lastBill.redemption_amount).toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-bold text-white pt-1 border-t border-[#1E2D4A]">
+                <span>Amount Paid</span>
+                <span className="text-[#D4A843]">{sym}{Number(lastBill.net_amount).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Loyalty Credits */}
+            <div className="py-3 border-b border-[#1E2D4A] text-xs bg-slate-900/40 rounded-xl px-3 my-2 space-y-1">
+              {Number(lastBill.cashback_earned) > 0 && (
+                <div className="flex justify-between text-green-400 font-semibold">
+                  <span>🎉 Cashback Earned</span>
+                  <span>+{sym}{Number(lastBill.cashback_earned).toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-slate-300">
+                <span>New Wallet Balance</span>
+                <span className="font-bold text-amber-300">{sym}{((receiptCust?.cashback_balance || 0) + (receiptCust?.referral_balance || 0)).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") window.print();
+                }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-[#0A0F1E]"
+                style={{ background: "linear-gradient(135deg,#D4A843,#F5D078)" }}
+              >
+                🖨️ Print Slip
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowReceipt(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 border border-[#1E2D4A] hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );

@@ -212,6 +212,47 @@ export async function searchCustomers(
 // BILL PREVIEW (read-only)
 // ══════════════════════════════════════════════════════════════
 
+// ─── Pure calculation engine for bill preview & unit testing ───────
+export function calculateBillDetails(params: {
+  grossAmount: number;
+  redemptionPct: number;
+  cashbackPct: number;
+  walletSource: WalletSource;
+  cashbackBalance: number;
+  referralBalance: number;
+  referralPerVisitLimit?: number | null;
+}) {
+  const gross = Math.max(0, Number(params.grossAmount) || 0);
+  const cPct = Math.max(0, Number(params.cashbackPct) || 0);
+  const rPct = Math.max(0, Number(params.redemptionPct) || 0);
+  const perVisitCap = params.referralPerVisitLimit != null ? Number(params.referralPerVisitLimit) : 100;
+
+  let redemptionAmount = 0;
+  if (params.walletSource === "referral") {
+    const usableReferral = Math.min(Math.max(0, params.referralBalance || 0), perVisitCap);
+    redemptionAmount = Math.min(usableReferral, gross);
+  } else if (params.walletSource === "cashback") {
+    const maxDiscount = Math.round((gross * rPct) / 100 * 100) / 100;
+    redemptionAmount = Math.min(maxDiscount, Math.max(0, params.cashbackBalance || 0));
+  } else {
+    redemptionAmount = 0;
+  }
+
+  redemptionAmount = Math.min(redemptionAmount, gross);
+  redemptionAmount = Math.round(redemptionAmount * 100) / 100;
+
+  const netAmount = Math.round((gross - redemptionAmount) * 100) / 100;
+  const cashbackEarned = Math.round(((netAmount * cPct) / 100) * 100) / 100;
+
+  return {
+    grossAmount: gross,
+    redemptionAmount,
+    netAmount,
+    cashbackEarned,
+  };
+}
+
+
 export async function previewBill(
   customerId:    string,
   grossAmount:   number,
@@ -368,10 +409,8 @@ export async function processBill(payload: BillPayload): Promise<BillResult> {
     wallet_source:     String(raw?.wallet_source     ?? walletSource),
   };
 
-  // 5. Update Usage Count ONLY if Referral was used
-  if (walletSource === "referral" && bill.redemption_amount > 0) {
-    await svc.rpc('increment_referral_usage', { p_user_id: customerId });
-  }
+  // 5. Referral usage count is incremented atomically inside DB process_bill
+  // (when p_wallet_source = 'referral'). Removed redundant second increment here.
 
   // 6. Fetch updated profile for UI and Emails
   const { data: updatedProfile } = await svc
@@ -379,6 +418,23 @@ export async function processBill(payload: BillPayload): Promise<BillResult> {
     .select("cashback_balance, referral_balance, email, full_name, is_first_purchase_done")
     .eq("id", String(customerId))
     .single();
+
+  // Send receipt email if email is present and Resend is configured
+  if (updatedProfile?.email && process.env.RESEND_API_KEY) {
+    try {
+      await sendReceiptEmail({
+        to: updatedProfile.email,
+        name: updatedProfile.full_name ?? "Valued Customer",
+        grossAmount: Number(grossAmount),
+        redemptionAmount: bill.redemption_amount,
+        netAmount: bill.net_amount,
+        cashbackEarned: bill.cashback_earned,
+        newWalletBalance: Number(updatedProfile.cashback_balance ?? 0) + Number(updatedProfile.referral_balance ?? 0),
+      });
+    } catch (emailErr) {
+      console.warn("[processBill] Receipt email delivery warning (non-fatal):", emailErr);
+    }
+  }
 
   // 7. Revalidate UI
   revalidatePath("/admin/billing");

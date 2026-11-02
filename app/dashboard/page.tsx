@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 // app/dashboard/page.tsx  ─ PRODUCTION FINAL
 // ══════════════════════════════════════════════════════════════
 // Server component: validates session, fetches all dashboard
@@ -89,7 +90,15 @@ export default async function DashboardPage() {
   // DashboardClient handles null profile with a loading state.
 
   return (
-    <DashboardClient
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-2 border-[#D4A843] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-400 text-sm">Loading your wallet…</p>
+        </div>
+      </div>
+    }>
+      <DashboardClient
       settings={settingsRes}
       profile={profile}
       bills={billsRes.data ?? []}
@@ -98,6 +107,7 @@ export default async function DashboardPage() {
       pendingReferrals={pendingReferralsRes.data ?? []}
       milestoneSettings={milestoneSettingsRes ?? []}
       spendRanges={spendRangesRes ?? []}
-    />
+      />
+    </Suspense>
   );
 }

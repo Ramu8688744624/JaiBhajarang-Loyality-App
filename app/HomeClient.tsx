@@ -261,6 +261,26 @@ export default function HomeClient({
               🏪 {t.btn_shop} ↗
             </a>
           </div>
+
+          {/* 🪔 Diwali Dhamaka Festive Banner */}
+          <div className="mt-8 p-5 sm:p-6 rounded-3xl text-left max-w-2xl mx-auto shadow-2xl"
+            style={{
+              background: "linear-gradient(135deg, rgba(180,83,9,0.35) 0%, rgba(124,45,18,0.45) 50%, rgba(15,23,41,0.9) 100%)",
+              border: "1px solid rgba(245,158,11,0.4)",
+            }}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">🪔</span>
+              <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950">
+                Diwali Dhamaka Offers 2026
+              </span>
+            </div>
+            <h3 className="text-lg sm:text-xl font-black text-amber-200 mb-1">
+              Celebrate Diwali with Jai Bhajarang Mobiles! ✨
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              Karimnagar's premier mobile & service store is rewarding every customer this festive season! Get ₹500 instant welcome bonus on signup, double cashback on phone accessories, and free milestone gifts on repeated visits.
+            </p>
+          </div>
         </div>
       </section>
 

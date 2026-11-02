@@ -9,7 +9,7 @@
 import { useState, useEffect } from "react";
 import GiftBanner from "@/components/GiftBanner";
 import { getMyGiftClaims } from "@/lib/actions/gifts";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 const TIERS = [
   { label: "Bronze",   min: 0,     max: 4999,   color: "#CD7F32", icon: "🥉" },
   { label: "Silver",   min: 5000,  max: 14999,  color: "#C0C0C0", icon: "🥈" },
@@ -40,7 +40,17 @@ export default function DashboardClient({
   settings, profile, bills, giftTiers, userMilestones, milestoneSettings, spendRanges,
   pendingReferrals = [],
 }: Props) {
-  const [tab,          setTab]          = useState<"overview"|"history"|"gifts"|"referral">("overview");
+  const searchParams = useSearchParams();
+  const paramTab = searchParams ? (searchParams.get("tab") as "overview" | "history" | "gifts" | "referral" | null) : null;
+  const [tab, setTab] = useState<"overview"|"history"|"gifts"|"referral">(
+    paramTab && ["overview", "history", "gifts", "referral"].includes(paramTab) ? paramTab : "overview"
+  );
+
+  useEffect(() => {
+    if (paramTab && ["overview", "history", "gifts", "referral"].includes(paramTab)) {
+      setTab(paramTab);
+    }
+  }, [paramTab]);
   const [expandedTier, setExpandedTier] = useState<string | null>(null);
   const [codeCopied,   setCodeCopied]   = useState(false);
   const [linkCopied,   setLinkCopied]   = useState(false);
@@ -234,6 +244,27 @@ export default function DashboardClient({
         {/* ────────────── OVERVIEW ──────────────────────────── */}
         {tab === "overview" && (
           <>
+            {/* 🪔 Diwali Dhamaka Festive Banner */}
+            <div className="rounded-2xl p-4 sm:p-5 text-white relative overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #7C2D12 0%, #B45309 50%, #0F1729 100%)",
+                border: "1px solid rgba(245, 158, 11, 0.4)",
+                boxShadow: "0 10px 25px -5px rgba(245, 158, 11, 0.2)"
+              }}>
+              <div className="flex items-start justify-between gap-3 relative z-10">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-slate-950 mb-2 tracking-wide uppercase">
+                    🪔 DIWALI SPECIAL OFFERS 2026
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-amber-200">Jai Bhajarang Diwali Dhamaka! ✨</h3>
+                  <p className="text-xs sm:text-sm text-amber-100/90 mt-1 leading-relaxed">
+                    Double cashback on mobile accessories, free 9D tempered glass with every phone cover, and festive exchange bonuses at our Karimnagar shop!
+                  </p>
+                </div>
+                <span className="text-3xl sm:text-4xl flex-shrink-0 animate-bounce">🪔</span>
+              </div>
+            </div>
+
             {/* Wallet cards */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-[#0F1729] border border-[#1E2D4A] rounded-2xl p-4">
